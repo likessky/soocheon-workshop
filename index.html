@@ -35,6 +35,12 @@
 
       <!-- 상단 우측 유틸리티 버튼 -->
       <div class="header-actions">
+        <!-- [추가된 기능] 새 프로젝트 등록 버튼 -->
+        <button id="btnAddProject" class="btn-primary" title="새 프로젝트 직접 추가하기" style="margin-right: 8px;">
+          <i class="fa-solid fa-plus"></i>
+          <span class="btn-text-desktop">새 프로젝트 등록</span>
+        </button>
+        
         <button id="btnOpenSettings" class="btn-icon" title="구글 스프레드시트 연동 설정" aria-label="설정 열기">
           <i class="fa-solid fa-cloud-arrow-down"></i>
           <span class="btn-text-desktop">시트 연동</span>
@@ -293,6 +299,66 @@
             <i class="fa-solid fa-floppy-disk"></i> 저장 및 실시간 동기화
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- [추가된 기능: 새 프로젝트 등록 모달 팝업] -->
+  <div id="addProjectModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="addProjectTitle">
+    <div class="modal-card settings-modal-card">
+      <button id="btnCloseAddProject" class="modal-close-btn" aria-label="팝업 닫기">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <div class="settings-header">
+        <div class="settings-icon">
+          <i class="fa-solid fa-pen-to-square"></i>
+        </div>
+        <div>
+          <h3 id="addProjectTitle" class="settings-title">새 프로젝트 등록</h3>
+          <p class="settings-desc">여기서 입력한 내용은 구글 시트에 자동으로 쏙! 추가됩니다.</p>
+        </div>
+      </div>
+
+      <div class="settings-body" style="max-height: 60vh; overflow-y: auto; padding-right: 10px;">
+        <!-- 입력 폼 -->
+        <div class="form-group">
+          <label for="addUrl" class="form-label">URL (주소) <span class="label-badge">필수</span></label>
+          <input type="url" id="addUrl" class="form-input" placeholder="https://...">
+        </div>
+        
+        <div class="form-group">
+          <label for="addTitle" class="form-label">프로젝트 제목 <span class="label-badge">필수</span></label>
+          <input type="text" id="addTitle" class="form-input" placeholder="멋진 이름을 지어주세요">
+        </div>
+        
+        <div class="form-group">
+          <label for="addDesc" class="form-label">프로젝트 설명</label>
+          <textarea id="addDesc" class="form-input" placeholder="어떤 프로젝트인지 간단히 설명해주세요" rows="2" style="resize: vertical;"></textarea>
+        </div>
+        
+        <div class="form-group">
+          <label for="addCategory" class="form-label">카테고리</label>
+          <select id="addCategory" class="form-input">
+            <option value="웹사이트">웹사이트</option>
+            <option value="프로그램">프로그램</option>
+            <option value="스크립트">스크립트</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="addThumbnail" class="form-label">썸네일 이미지 주소 (선택)</label>
+          <input type="url" id="addThumbnail" class="form-input" placeholder="비워두면 예쁜 기본 이미지가 들어갑니다">
+        </div>
+      </div>
+
+      <div class="settings-actions" style="margin-top: 20px;">
+        <button id="btnCancelAdd" class="btn-secondary">
+          취소
+        </button>
+        <button id="btnSubmitProject" class="btn-primary">
+          <i class="fa-solid fa-paper-plane"></i> 구글 시트로 전송!
+        </button>
       </div>
     </div>
   </div>

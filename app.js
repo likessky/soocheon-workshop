@@ -97,7 +97,19 @@ const DOM = {
   // 알림 토스트 메시지
   toast: document.getElementById("toast"),
   toastText: document.getElementById("toastText"),
-  toastIcon: document.getElementById("toastIcon")
+  toastIcon: document.getElementById("toastIcon"),
+
+  // [추가된 기능] 새 프로젝트 등록 모달 및 폼 요소
+  addProjectModal: document.getElementById("addProjectModal"),
+  btnAddProject: document.getElementById("btnAddProject"),
+  btnCloseAddProject: document.getElementById("btnCloseAddProject"),
+  btnCancelAdd: document.getElementById("btnCancelAdd"),
+  btnSubmitProject: document.getElementById("btnSubmitProject"),
+  addUrl: document.getElementById("addUrl"),
+  addTitle: document.getElementById("addTitle"),
+  addDesc: document.getElementById("addDesc"),
+  addCategory: document.getElementById("addCategory"),
+  addThumbnail: document.getElementById("addThumbnail")
 };
 
 // ------------------------------------------------------------------------------
@@ -696,6 +708,82 @@ function toggleTheme() {
 }
 
 // ------------------------------------------------------------------------------
+// 8. 새 프로젝트 등록 (POST 데이터 쓰기)
+// ------------------------------------------------------------------------------
+/**
+ * 웹 화면에서 직접 입력한 데이터를 모아 구글 시트로 전송합니다.
+ */
+async function submitNewProject() {
+  const url = DOM.addUrl.value.trim();
+  const title = DOM.addTitle.value.trim();
+  
+  // 필수 항목 유효성 검사
+  if (!url || !title) {
+    showToast("URL과 프로젝트 제목은 필수입니다!", "error");
+    return;
+  }
+  
+  // 연동 확인: 데모 상태인 경우 실제 시트 URL 등록 안내
+  if (!state.sheetUrl || state.sheetUrl === CONFIG.SHEET_API_URL) {
+    showToast("먼저 우측 상단 '시트 연동'에 본인의 Apps Script URL을 등록해주세요.", "error");
+    openModal(DOM.settingsModal); // 설정 모달 바로 열어주기
+    return;
+  }
+
+  // 버튼 로딩 상태로 변경 (사용자가 여러번 누르는 것 방지)
+  const originalBtnText = DOM.btnSubmitProject.innerHTML;
+  DOM.btnSubmitProject.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 전송 중...';
+  DOM.btnSubmitProject.disabled = true;
+
+  // 구글 시트로 보낼 데이터 객체 조립
+  const payload = {
+    url: url,
+    title: title,
+    description: DOM.addDesc.value.trim(),
+    tag: DOM.addCategory.value,
+    thumbnail: DOM.addThumbnail.value.trim()
+  };
+
+  try {
+    // Fetch API를 사용하여 POST 요청 (Apps Script로 전송)
+    // 구글 Apps Script CORS 이슈 방지를 위해 text/plain 으로 전송
+    const response = await fetch(state.sheetUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8', 
+      },
+      body: JSON.stringify(payload)
+    });
+    
+    // Apps Script의 doPost가 반환하는 JSON 파싱
+    const result = await response.json();
+    
+    if (result.success) {
+      showToast("새 프로젝트가 시트에 성공적으로 등록되었습니다! 🎉", "success");
+      closeModal(DOM.addProjectModal);
+      
+      // 입력 폼 깨끗하게 비우기
+      DOM.addUrl.value = "";
+      DOM.addTitle.value = "";
+      DOM.addDesc.value = "";
+      DOM.addThumbnail.value = "";
+      
+      // 방금 추가한 항목이 화면에 바로 보이도록 시트 데이터 새로고침
+      fetchDataFromSheet();
+    } else {
+      showToast("등록 실패: " + result.message, "error");
+    }
+  } catch (error) {
+    showToast("전송 중 오류가 발생했습니다. (콘솔 확인)", "error");
+    console.error("POST 전송 오류:", error);
+  } finally {
+    // 버튼 텍스트와 활성화 상태 원상복구
+    DOM.btnSubmitProject.innerHTML = originalBtnText;
+    DOM.btnSubmitProject.disabled = false;
+  }
+}
+
+// ------------------------------------------------------------------------------
 // 12. 전체 이벤트 리스너 등록
 // ------------------------------------------------------------------------------
 function setupEventListeners() {
@@ -816,6 +904,19 @@ function setupEventListeners() {
   DOM.settingsModal.addEventListener("click", (e) => {
     if (e.target === DOM.settingsModal) closeSettingsModal();
   });
+
+  // [추가된 기능] 새 프로젝트 등록 팝업 이벤트
+  if (DOM.btnAddProject) {
+    DOM.btnAddProject.addEventListener("click", () => openModal(DOM.addProjectModal));
+  }
+  if (DOM.btnCloseAddProject) DOM.btnCloseAddProject.addEventListener("click", () => closeModal(DOM.addProjectModal));
+  if (DOM.btnCancelAdd) DOM.btnCancelAdd.addEventListener("click", () => closeModal(DOM.addProjectModal));
+  if (DOM.btnSubmitProject) DOM.btnSubmitProject.addEventListener("click", submitNewProject);
+  if (DOM.addProjectModal) {
+    DOM.addProjectModal.addEventListener("click", (e) => {
+      if (e.target === DOM.addProjectModal) closeModal(DOM.addProjectModal);
+    });
+  }
 
   // ESC 키로 모달 닫기
   document.addEventListener("keydown", (e) => {
