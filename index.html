@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>수천재작소 | 개발 프로젝트 통합 관리 포털</title>
+  <meta name="description" content="수천재의 독창적인 개발 프로젝트, 웹앱, 자동화 스크립트를 한눈에 모아보고 관리하는 통합 포털">
+
+  <!-- 웹폰트: Pretendard (최고의 한글 가독성 & 깔끔한 모던 타이포그래피) -->
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" />
+  
+  <!-- 아이콘: Font Awesome 6 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <!-- 스타일시트 (스타벅스 따뜻한 크림 & 사이렌 그린 디자인 시스템) -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="light-theme">
+  <!-- 배경 은은한 앰비언트 그래픽 -->
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+
+  <!-- [상단 네비게이션 헤더] -->
+  <header class="site-header">
+    <div class="header-container">
+      <div class="brand">
+        <div class="brand-icon">
+          <i class="fa-solid fa-mug-hot"></i>
+        </div>
+        <div class="brand-text">
+          <h1 class="brand-title">수천재작소</h1>
+          <span class="brand-badge">PRO ATELIER</span>
+        </div>
+      </div>
+
+      <!-- 상단 우측 유틸리티 버튼 -->
+      <div class="header-actions">
+        <button id="btnOpenSettings" class="btn-icon" title="구글 스프레드시트 연동 설정" aria-label="설정 열기">
+          <i class="fa-solid fa-cloud-arrow-down"></i>
+          <span class="btn-text-desktop">시트 연동</span>
+          <span id="syncIndicator" class="sync-dot demo" title="현재 샘플 모드로 작동 중"></span>
+        </button>
+        <button id="btnToggleTheme" class="btn-icon" title="테마 변경 (크림 라이트 / 리저브 다크)" aria-label="테마 전환">
+          <i id="themeIcon" class="fa-solid fa-moon"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- [메인 히어로 섹션] -->
+  <section class="hero-section">
+    <div class="hero-container">
+      <div class="hero-badge">
+        <i class="fa-solid fa-star"></i> HANDCRAFTED PROJECTS &amp; TOOLS
+      </div>
+      <h2 class="hero-title">
+        장인의 손길로 뚝딱,<br>
+        <span class="gradient-text">수천재의 프로젝트 아카이브</span>
+      </h2>
+      <p class="hero-subtitle">
+        구글 스프레드시트와 안티그래비티가 결합된 따뜻하고 직관적인 대시보드.<br>
+        개발된 웹 서비스, 업무 자동화 툴, 유용한 스크립트들을 실시간으로 탐색하고 실행해 보세요.
+      </p>
+
+      <!-- 요약 통계 지표 (Stats Counter) -->
+      <div class="stats-bar">
+        <div class="stat-card" data-filter="전체">
+          <div class="stat-icon"><i class="fa-solid fa-layer-group"></i></div>
+          <div class="stat-info">
+            <span class="stat-value" id="statTotal">0</span>
+            <span class="stat-label">총 프로젝트</span>
+          </div>
+        </div>
+        <div class="stat-card" data-filter="웹사이트">
+          <div class="stat-icon stat-web"><i class="fa-solid fa-globe"></i></div>
+          <div class="stat-info">
+            <span class="stat-value" id="statWeb">0</span>
+            <span class="stat-label">웹사이트</span>
+          </div>
+        </div>
+        <div class="stat-card" data-filter="프로그램">
+          <div class="stat-icon stat-app"><i class="fa-solid fa-laptop-code"></i></div>
+          <div class="stat-info">
+            <span class="stat-value" id="statApp">0</span>
+            <span class="stat-label">프로그램</span>
+          </div>
+        </div>
+        <div class="stat-card" data-filter="스크립트">
+          <div class="stat-icon stat-script"><i class="fa-solid fa-terminal"></i></div>
+          <div class="stat-info">
+            <span class="stat-value" id="statScript">0</span>
+            <span class="stat-label">자동화 스크립트</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- [메인 콘텐츠 영역: 검색, 필터, 개수/보기 모드 조절, 프로젝트 목록] -->
+  <main class="main-content">
+    <div class="content-container">
+      
+      <!-- 컨트롤 바: 검색창 + 태그 탭 + 상태 필터 -->
+      <div class="control-panel">
+        <!-- 검색창 -->
+        <div class="search-box">
+          <i class="fa-solid fa-magnifying-glass search-icon"></i>
+          <input type="text" id="searchInput" placeholder="프로젝트명, 설명, 태그 실시간 검색..." autocomplete="off">
+          <button id="btnClearSearch" class="btn-clear hidden" aria-label="검색어 지우기">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <!-- 필터 그룹 -->
+        <div class="filter-group">
+          <!-- 카테고리 탭 버튼 (스타벅스 시그니처 Pill 버튼) -->
+          <div class="category-tabs" id="categoryTabs">
+            <button class="tab-btn active" data-category="전체">
+              <i class="fa-solid fa-border-all"></i> 전체보기
+            </button>
+            <button class="tab-btn" data-category="웹사이트">
+              <i class="fa-solid fa-globe"></i> 웹사이트
+            </button>
+            <button class="tab-btn" data-category="프로그램">
+              <i class="fa-solid fa-laptop-code"></i> 프로그램
+            </button>
+            <button class="tab-btn" data-category="스크립트">
+              <i class="fa-solid fa-terminal"></i> 스크립트
+            </button>
+          </div>
+
+          <!-- 상태 필터 셀렉트박스 -->
+          <div class="status-filter-wrapper">
+            <select id="statusFilter" class="status-select">
+              <option value="전체">모든 운영 상태</option>
+              <option value="운영 중">🟢 운영 중</option>
+              <option value="업데이트 중">🟡 업데이트 중</option>
+              <option value="다운로드 전용">🔴 다운로드 전용</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- 서브 툴바: 개수 안내 + 페이지당 개수 선택 + 보기 형태 토글 (카드뷰/리스트뷰) + 새로고침 -->
+      <div class="sub-toolbar">
+        <div class="toolbar-left">
+          <span id="resultCountInfo" class="count-info-text">
+            총 <strong id="currentCount">0</strong>개 중 <span id="displayRangeInfo">0-0</span>개 표시 중
+          </span>
+        </div>
+
+        <div class="toolbar-right">
+          <!-- 한 번에 볼 개수 선택 드롭다운 -->
+          <div class="per-page-wrapper">
+            <label for="itemsPerPageSelect" class="per-page-label">
+              <i class="fa-solid fa-list-ol"></i>
+              <span class="desktop-only-text">표시 개수:</span>
+            </label>
+            <select id="itemsPerPageSelect" class="per-page-select">
+              <option value="6">6개씩</option>
+              <option value="12" selected>12개씩</option>
+              <option value="24">24개씩</option>
+              <option value="all">전체보기</option>
+            </select>
+          </div>
+
+          <!-- 보기 형태 전환 토글 (카드 뷰 vs 리스트 뷰) -->
+          <div class="view-mode-group" role="group" aria-label="보기 형태 전환">
+            <button id="btnViewGrid" class="btn-view-mode active" title="카드 그리드 뷰" aria-label="카드 그리드 뷰">
+              <i class="fa-solid fa-table-cells-large"></i>
+            </button>
+            <button id="btnViewList" class="btn-view-mode" title="리스트 목록 뷰" aria-label="리스트 목록 뷰">
+              <i class="fa-solid fa-list-ul"></i>
+            </button>
+          </div>
+
+          <!-- 새로고침 버튼 -->
+          <button id="btnReloadData" class="btn-icon-action" title="데이터 실시간 새로고침" aria-label="데이터 새로고침">
+            <i class="fa-solid fa-rotate-right"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- 프로젝트 카드 그리드 / 리스트 목록 컨테이너 -->
+      <div id="projectGrid" class="project-grid">
+        <!-- 자바스크립트에 의해 카드 또는 리스트 항목들이 동적으로 생성됩니다 -->
+      </div>
+
+      <!-- 페이지네이션 컨트롤러 (이전 / 페이지번호 / 다음) -->
+      <nav id="paginationContainer" class="pagination-wrapper hidden" aria-label="프로젝트 목록 페이지 이동">
+        <!-- 자바스크립트에 의해 동적으로 페이지 버튼들이 생성됩니다 -->
+      </nav>
+
+      <!-- 검색/필터 결과가 없을 때 보여줄 안내 UI -->
+      <div id="emptyState" class="empty-state hidden">
+        <div class="empty-icon">
+          <i class="fa-solid fa-box-open"></i>
+        </div>
+        <h3 class="empty-title">일치하는 프로젝트가 없습니다</h3>
+        <p class="empty-desc">검색어를 수정하시거나 다른 카테고리 필터를 선택해 보세요.</p>
+        <button id="btnResetFilters" class="btn-primary">
+          <i class="fa-solid fa-arrow-rotate-left"></i> 필터 초기화
+        </button>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- [프로젝트 상세 보기 모달 팝업] -->
+  <div id="detailModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-card">
+      <button id="btnCloseModal" class="modal-close-btn" aria-label="팝업 닫기">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <div class="modal-thumbnail-wrapper">
+        <img id="modalThumbnail" src="" alt="프로젝트 썸네일">
+        <div class="modal-badges">
+          <span id="modalCategoryBadge" class="card-badge category">카테고리</span>
+          <span id="modalStatusBadge" class="card-badge status">상태</span>
+        </div>
+      </div>
+
+      <div class="modal-body">
+        <h3 id="modalTitle" class="modal-title">프로젝트 이름</h3>
+
+        <!-- 상세 설명 -->
+        <div class="modal-desc-section">
+          <h4 class="section-heading">프로젝트 개요</h4>
+          <p id="modalDescription" class="modal-desc-text">상세 설명 내용입니다.</p>
+        </div>
+
+        <!-- 기술 스택 / 태그 -->
+        <div class="modal-tech-section">
+          <h4 class="section-heading">태그 및 기술 스택</h4>
+          <div id="modalTechStack" class="tech-tags-list">
+            <!-- 칩들이 동적으로 들어감 -->
+          </div>
+        </div>
+
+        <!-- 액션 버튼들 -->
+        <div class="modal-actions" id="modalActions">
+          <!-- 웹 바로가기, 드라이브 다운로드 버튼이 동적 배치 -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- [구글 스프레드시트 연동 설정 모달] -->
+  <div id="settingsModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="modal-card settings-modal-card">
+      <button id="btnCloseSettings" class="modal-close-btn" aria-label="설정 닫기">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <div class="settings-header">
+        <div class="settings-icon">
+          <i class="fa-solid fa-table-cells"></i>
+        </div>
+        <div>
+          <h3 id="settingsTitle" class="settings-title">구글 스프레드시트 연동 설정</h3>
+          <p class="settings-desc">시트에 입력된 프로젝트를 실시간으로 불러와 화면에 띄웁니다.</p>
+        </div>
+      </div>
+
+      <div class="settings-body">
+        <div class="form-group">
+          <label for="inputSheetUrl" class="form-label">
+            Apps Script 웹앱 배포 URL
+            <span class="label-badge">권장</span>
+          </label>
+          <input type="url" id="inputSheetUrl" class="form-input" 
+                 placeholder="https://script.google.com/macros/s/.../exec">
+          <p class="input-help">
+            <i class="fa-solid fa-circle-info"></i> 구글 시트에서 [확장 프로그램 > Apps Script] 배포 후 얻은 웹앱 URL을 입력하세요.
+          </p>
+        </div>
+
+        <div class="integration-guide-box">
+          <h4><i class="fa-solid fa-lightbulb"></i> 초간단 연동 방법 (1분 완성)</h4>
+          <ol class="guide-steps">
+            <li>제공해 드린 <code>Code.gs</code> 코드를 구글 시트 Apps Script에 붙여넣습니다.</li>
+            <li>[배포 > 새 배포 > 웹 앱] (액세스 권한: 모든 사용자)으로 배포합니다.</li>
+            <li>생성된 웹앱 URL을 위 칸에 붙여넣고 [저장 및 실시간 동기화]를 누르면 끝!</li>
+          </ol>
+        </div>
+
+        <div class="settings-actions">
+          <button id="btnResetToSample" class="btn-secondary">
+            <i class="fa-solid fa-arrow-rotate-left"></i> 기본 데모 데이터로 복원
+          </button>
+          <button id="btnSaveSettings" class="btn-primary">
+            <i class="fa-solid fa-floppy-disk"></i> 저장 및 실시간 동기화
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- [알림 토스트 메시지] -->
+  <div id="toast" class="toast-message hidden">
+    <i id="toastIcon" class="fa-solid fa-circle-check"></i>
+    <span id="toastText">알림 내용</span>
+  </div>
+
+  <!-- [하단 푸터] -->
+  <footer class="site-footer">
+    <div class="footer-container">
+      <div class="footer-left">
+        <p class="footer-copy">© 2026 <strong>수천재작소</strong> (SooCheon Workshop). All rights reserved.</p>
+        <p class="footer-sub">Crafted with Care &bull; Google Sheets Realtime Integration</p>
+      </div>
+      <div class="footer-right">
+        <span class="footer-tag"><i class="fa-solid fa-leaf"></i> Warm &amp; Friendly</span>
+        <span class="footer-tag"><i class="fa-solid fa-cube"></i> Pure &amp; Lightweight</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- 스크립트 로드: config.js 먼저, 그 다음 app.js -->
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
