@@ -2,75 +2,74 @@
  * ==============================================================================
  * 수천재작소 (SooCheon Workshop) - 메인 애플리케이션 로직 (app.js)
  * ==============================================================================
- * 
- * [버전 안내: v2.0 - 페이지네이션 & 뷰 모드 전환 & 초간단 7열 연동]
- * 
- * [핵심 추가 및 개선 기능]
- * 1. 화면에 표시할 사이트 개수 선택 (6개 / 12개 / 24개 / 전체보기)
- * 2. 부드러운 페이지네이션 (이전, 페이지 번호, 다음 버튼 및 범위 안내)
- * 3. 보기 형태 전환 (비주얼 중심 카드 뷰 ↔ 한눈에 훑어보는 리스트 뷰)
- * 4. 사용자 선택값(테마, 보기 모드, 페이지당 개수) 브라우저 자동 저장 (localStorage)
- * 5. 복잡한 AI 의존성 없이 순수한 웹/프로그램/스크립트 데이터 초고속 렌더링
- * 
- * 초보자 및 교육자 분들도 쉽게 이해하고 수정할 수 있도록 모든 함수와 로직에 친절한 한글 주석을 달아두었습니다.
+ *
+ * [버전 안내: v3.0]
+ *
+ * [핵심 개선 사항]
+ * 1. 즉시 로딩: 마지막으로 불러온 데이터를 브라우저에 캐시해두고, 재접속 시 바로
+ *    화면에 그린 뒤 백그라운드에서 최신 데이터로 조용히 갱신합니다(진입 토스트 없음).
+ * 2. 가로(열) 개수 조절: 표시 개수(세로)뿐 아니라 한 줄에 보일 카드 개수도 선택 가능.
+ * 3. 모바일 최적화 레이아웃 (히어로 / 통계바 / 카드).
+ * 4. 사이트 등록/수정/삭제를 웹 화면에서 바로 처리 (구글 시트에 실시간 반영).
+ * 5. 탭(카테고리)을 화면에서 직접 추가/수정/삭제/순서변경.
+ *
+ * 이벤트 처리는 카드마다 onclick을 문자열로 심던 예전 방식 대신, 컨테이너 한 곳에
+ * 이벤트 위임(delegation)을 걸어 data-id / data-action 속성으로 처리합니다.
  */
 
 // ------------------------------------------------------------------------------
 // 1. 전역 상태 관리 (State Management)
 // ------------------------------------------------------------------------------
 let state = {
-  allProjects: [],        // 구글 시트 또는 샘플에서 불러온 전체 프로젝트 원본 데이터
+  allProjects: [],        // 구글 시트에서 불러온 전체 프로젝트 목록
+  categories: [],         // 탭(카테고리) 목록
   filteredProjects: [],   // 현재 검색어 및 카테고리/상태 필터가 적용된 데이터
-  selectedCategory: "전체", // 현재 선택된 탭 ("전체", "웹사이트", "프로그램", "스크립트")
-  selectedStatus: "전체",   // 현재 선택된 상태 ("전체", "운영 중", "업데이트 중", "다운로드 전용")
-  searchQuery: "",        // 검색창에 입력된 실시간 키워드
-  
-  // 페이지네이션 관련 상태
-  currentPage: 1,         // 현재 보고 있는 페이지 번호 (기본: 1페이지)
-  itemsPerPage: localStorage.getItem("soocheon_per_page") || "12", // 한 화면에 볼 개수 (기본: 12개)
-  
-  // 보기 형태 상태 ('grid': 카드 그리드 뷰, 'list': 목록 리스트 뷰)
+
+  selectedCategory: "전체",
+  selectedStatus: "전체",
+  searchQuery: "",
+
+  currentPage: 1,
+  itemsPerPage: localStorage.getItem("soocheon_per_page") || "12",
+  gridCols: localStorage.getItem("soocheon_grid_cols") || "3",   // 가로 열 개수 ('auto' 또는 1~5)
+
   viewMode: localStorage.getItem("soocheon_view_mode") || "grid",
-  
-  // 테마 및 구글 시트 연동 URL
   theme: localStorage.getItem("soocheon_theme") || "light",
-  sheetUrl: localStorage.getItem("soocheon_sheet_url") || CONFIG.SHEET_API_URL || ""
+  sheetUrl: localStorage.getItem("soocheon_sheet_url") || (typeof CONFIG !== "undefined" ? CONFIG.SHEET_API_URL : "") || "",
+
+  formMode: "create",          // "create" | "edit"
+  editingProjectId: null,
+  confirmAction: null          // 확인 모달에서 [삭제] 눌렀을 때 실행할 함수
 };
 
-// 썸네일 이미지 로딩 실패 또는 미입력 시 표시할 기본 고품질 플레이스홀더 이미지
+const CACHE_KEY = "soocheon_cache_v3";
 const FALLBACK_THUMBNAIL = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60";
 
 // ------------------------------------------------------------------------------
 // 2. DOM 요소 참조 객체 (UI Elements)
 // ------------------------------------------------------------------------------
 const DOM = {
-  // 프로젝트 목록 컨테이너 및 상태 안내
   projectGrid: document.getElementById("projectGrid"),
   emptyState: document.getElementById("emptyState"),
   currentCount: document.getElementById("currentCount"),
   displayRangeInfo: document.getElementById("displayRangeInfo"),
   paginationContainer: document.getElementById("paginationContainer"),
 
-  // 통계 지표 엘리먼트
-  statTotal: document.getElementById("statTotal"),
-  statWeb: document.getElementById("statWeb"),
-  statApp: document.getElementById("statApp"),
-  statScript: document.getElementById("statScript"),
+  statsBar: document.getElementById("statsBar"),
 
-  // 검색 및 필터 컨트롤
   searchInput: document.getElementById("searchInput"),
   btnClearSearch: document.getElementById("btnClearSearch"),
   categoryTabs: document.getElementById("categoryTabs"),
+  btnManageCategories: document.getElementById("btnManageCategories"),
   statusFilter: document.getElementById("statusFilter"),
   btnResetFilters: document.getElementById("btnResetFilters"),
   btnReloadData: document.getElementById("btnReloadData"),
 
-  // 서브 툴바 컨트롤 (개수 선택 & 보기 모드)
+  columnSelect: document.getElementById("columnSelect"),
   itemsPerPageSelect: document.getElementById("itemsPerPageSelect"),
   btnViewGrid: document.getElementById("btnViewGrid"),
   btnViewList: document.getElementById("btnViewList"),
 
-  // 테마 및 시트 동기화 인디케이터
   btnToggleTheme: document.getElementById("btnToggleTheme"),
   themeIcon: document.getElementById("themeIcon"),
   syncIndicator: document.getElementById("syncIndicator"),
@@ -92,176 +91,319 @@ const DOM = {
   btnCloseSettings: document.getElementById("btnCloseSettings"),
   inputSheetUrl: document.getElementById("inputSheetUrl"),
   btnSaveSettings: document.getElementById("btnSaveSettings"),
-  btnResetToSample: document.getElementById("btnResetToSample"),
 
-  // 알림 토스트 메시지
+  // 알림 토스트
   toast: document.getElementById("toast"),
   toastText: document.getElementById("toastText"),
   toastIcon: document.getElementById("toastIcon"),
 
-  // [추가된 기능] 새 프로젝트 등록 모달 및 폼 요소
-  addProjectModal: document.getElementById("addProjectModal"),
+  // 프로젝트 등록/수정 모달
+  projectFormModal: document.getElementById("projectFormModal"),
   btnAddProject: document.getElementById("btnAddProject"),
-  btnCloseAddProject: document.getElementById("btnCloseAddProject"),
-  btnCancelAdd: document.getElementById("btnCancelAdd"),
-  btnSubmitProject: document.getElementById("btnSubmitProject"),
-  addUrl: document.getElementById("addUrl"),
-  addTitle: document.getElementById("addTitle"),
-  addDesc: document.getElementById("addDesc"),
-  addCategory: document.getElementById("addCategory"),
-  addThumbnail: document.getElementById("addThumbnail")
+  btnAddProjectFloat: document.getElementById("btnAddProjectFloat"),
+  btnCloseProjectForm: document.getElementById("btnCloseProjectForm"),
+  btnCancelProjectForm: document.getElementById("btnCancelProjectForm"),
+  btnSubmitProjectForm: document.getElementById("btnSubmitProjectForm"),
+  projectFormIcon: document.getElementById("projectFormIcon"),
+  projectFormTitle: document.getElementById("projectFormTitle"),
+  projectFormDesc: document.getElementById("projectFormDesc"),
+  projectFormSubmitText: document.getElementById("projectFormSubmitText"),
+  fUrl: document.getElementById("fUrl"),
+  fTitle: document.getElementById("fTitle"),
+  fDesc: document.getElementById("fDesc"),
+  fCategory: document.getElementById("fCategory"),
+  fStatus: document.getElementById("fStatus"),
+  fThumbnail: document.getElementById("fThumbnail"),
+  fDriveUrl: document.getElementById("fDriveUrl"),
+  fTechStack: document.getElementById("fTechStack"),
+
+  // 탭(카테고리) 관리 모달
+  categoryModal: document.getElementById("categoryModal"),
+  btnCloseCategoryModal: document.getElementById("btnCloseCategoryModal"),
+  categoryManageList: document.getElementById("categoryManageList"),
+  newCategoryName: document.getElementById("newCategoryName"),
+  newCategoryColor: document.getElementById("newCategoryColor"),
+  btnAddCategory: document.getElementById("btnAddCategory"),
+
+  // 삭제 확인 모달
+  confirmModal: document.getElementById("confirmModal"),
+  confirmModalTitle: document.getElementById("confirmModalTitle"),
+  confirmModalDesc: document.getElementById("confirmModalDesc"),
+  confirmModalExtra: document.getElementById("confirmModalExtra"),
+  btnConfirmCancel: document.getElementById("btnConfirmCancel"),
+  btnConfirmOk: document.getElementById("btnConfirmOk")
 };
 
 // ------------------------------------------------------------------------------
 // 3. 앱 초기화 (Initialization)
 // ------------------------------------------------------------------------------
 document.addEventListener("DOMContentLoaded", () => {
-  // 1) 테마 적용 (크림 라이트 또는 리저브 다크)
   applyTheme(state.theme);
-
-  // 2) 저장된 보기 모드(그리드/리스트) 및 개수 선택 초기 UI 반영
   applyInitialViewControls();
-
-  // 3) 이벤트 리스너 등록 (클릭, 검색, 필터, 페이지 변경 등)
   setupEventListeners();
-
-  // 4) 데이터 불러오기 (구글 시트 연동 시도 -> 실패 시 내장 샘플 데이터)
   loadProjectData();
 });
 
-/**
- * 저장된 보기 모드(그리드/리스트) 및 페이지당 개수를 셀렉트박스와 버튼에 반영
- */
 function applyInitialViewControls() {
-  // 표시 개수 셀렉트박스 값 동기화
-  if (DOM.itemsPerPageSelect) {
-    DOM.itemsPerPageSelect.value = state.itemsPerPage;
-  }
-
-  // 보기 형태 버튼 활성화 상태 동기화
+  if (DOM.itemsPerPageSelect) DOM.itemsPerPageSelect.value = state.itemsPerPage;
+  if (DOM.columnSelect) DOM.columnSelect.value = state.gridCols;
   updateViewModeButtons();
 }
 
 // ------------------------------------------------------------------------------
-// 4. 데이터 로드 및 구글 시트 연동
+// 4. 캐시 헬퍼 (즉시 로딩을 위한 로컬 저장)
 // ------------------------------------------------------------------------------
-/**
- * 구글 스프레드시트 또는 기본 샘플 데이터로부터 프로젝트 목록을 가져옵니다.
- */
-async function loadProjectData() {
-  const sheetApiUrl = state.sheetUrl.trim();
+function readCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.projects) || !Array.isArray(parsed.categories)) return null;
+    return parsed;
+  } catch (err) {
+    return null;
+  }
+}
 
-  // 구글 시트 URL이 설정되어 있는 경우 비동기 통신 시도
-  if (sheetApiUrl) {
-    showToast("구글 스프레드시트에서 데이터를 가져오는 중...", "info");
-    try {
-      const response = await fetch(sheetApiUrl);
-      if (!response.ok) {
-        throw new Error(`HTTP 에러! 상태 코드: ${response.status}`);
-      }
-      const data = await response.json();
+function writeCache(payload) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({
+      projects: payload.projects,
+      categories: payload.categories,
+      savedAt: Date.now()
+    }));
+  } catch (err) {
+    // 저장 공간이 부족하거나 접근 불가한 경우 조용히 무시 (기능에 필수는 아님)
+  }
+}
 
-      // 유효한 배열 데이터인지 검증
-      if (Array.isArray(data)) {
-        if (data.length > 0) {
-          state.allProjects = normalizeProjectsData(data);
-          updateSyncIndicator(true);
-          showToast(`구글 시트와 동기화 완료! (${data.length}개 프로젝트) ✨`, "success");
-        } else {
-          state.allProjects = [];
-          updateSyncIndicator(true);
-          showToast("구글 시트와 연결되었습니다! (등록된 프로젝트가 아직 없습니다)", "info");
-        }
-      } else {
-        throw new Error("시트에서 올바른 배열 형태의 데이터가 반환되지 않았습니다.");
-      }
-    } catch (error) {
-      console.warn("구글 시트 연동 실패, 샘플 데이터셋으로 대체합니다:", error);
-      updateSyncIndicator(false);
-      showToast("시트 연동 실패. 기본 샘플 데이터를 표시합니다.", "warning");
-      state.allProjects = [...CONFIG.SAMPLE_PROJECTS];
-    }
-  } else {
-    // 설정된 구글 시트 URL이 없는 경우: 기본 데모 샘플 데이터 사용
-    state.allProjects = [...CONFIG.SAMPLE_PROJECTS];
-    updateSyncIndicator(false);
+// ------------------------------------------------------------------------------
+// 5. 데이터 로드 (즉시 캐시 표시 → 백그라운드 동기화)
+// ------------------------------------------------------------------------------
+async function loadProjectData(options) {
+  const manual = !!(options && options.manual);
+  const sheetApiUrl = (state.sheetUrl || "").trim();
+  const cached = readCache();
+
+  // 1) 캐시가 있으면 fetch를 기다리지 않고 즉시 화면에 표시합니다.
+  if (cached && cached.projects.length > 0) {
+    state.allProjects = cached.projects;
+    state.categories = cached.categories.length ? cached.categories : getDefaultCategories();
+    renderAll();
+  } else if (!cached) {
+    // 캐시가 전혀 없는 첫 방문: 스켈레톤으로 "로딩 중"임을 보여줍니다.
+    state.categories = getDefaultCategories();
+    renderCategoryTabs();
+    renderStatsBar();
+    renderSkeleton();
   }
 
-  // 통계 수치 갱신 및 필터/페이지네이션 렌더링
-  updateStatistics();
-  state.currentPage = 1;
-  applyFilterAndRender();
+  if (!sheetApiUrl) {
+    updateSyncIndicator(false);
+    if (!cached) {
+      state.allProjects = [];
+      renderAll();
+    }
+    if (manual) showToast("연동된 구글 시트가 없습니다. 우측 상단 [시트 연동]을 설정해주세요.", "warning");
+    return;
+  }
+
+  if (manual && DOM.btnReloadData) DOM.btnReloadData.classList.add("is-spinning");
+
+  try {
+    const response = await fetch(sheetApiUrl, { cache: "no-store" });
+    if (!response.ok) throw new Error("HTTP " + response.status);
+
+    const data = await response.json();
+    if (!data || data.ok === false || data.error) {
+      throw new Error((data && data.message) || "시트에서 올바른 데이터를 받지 못했습니다.");
+    }
+
+    const projects = normalizeProjectsData(data.projects || []);
+    const categories = normalizeCategoriesData(data.categories || []);
+    const finalCategories = categories.length ? categories : getDefaultCategories();
+
+    const isSameAsCache = cached &&
+      JSON.stringify(projects) === JSON.stringify(cached.projects) &&
+      JSON.stringify(finalCategories) === JSON.stringify(cached.categories);
+
+    state.allProjects = projects;
+    state.categories = finalCategories;
+    writeCache({ projects, categories: finalCategories });
+    updateSyncIndicator(true);
+
+    if (!isSameAsCache || manual) {
+      if (state.currentPage !== 1 && !isSameAsCache) state.currentPage = 1;
+      renderAll();
+    }
+
+    if (manual) showToast("최신 데이터로 동기화했습니다. ✨", "success");
+  } catch (error) {
+    console.warn("구글 시트 연동 실패:", error);
+    updateSyncIndicator(false);
+
+    if (!cached) {
+      state.allProjects = [];
+      renderAll();
+    }
+
+    showToast(
+      cached
+        ? "최신 정보를 불러오지 못해 이전 데이터를 표시하고 있습니다."
+        : "시트 연동에 실패했습니다. [시트 연동] 설정을 확인해주세요.",
+      "warning"
+    );
+  } finally {
+    if (DOM.btnReloadData) DOM.btnReloadData.classList.remove("is-spinning");
+  }
+}
+
+function getDefaultCategories() {
+  return (typeof CONFIG !== "undefined" && Array.isArray(CONFIG.DEFAULT_CATEGORIES))
+    ? CONFIG.DEFAULT_CATEGORIES.map(c => Object.assign({}, c))
+    : [];
 }
 
 /**
- * 구글 시트 등 외부에서 받아온 데이터 구조를 내부 표준 규격으로 일관되게 정제합니다.
+ * 서버(혹은 캐시) 원본 데이터를 내부 표준 규격으로 정제합니다.
  */
 function normalizeProjectsData(rawList) {
   return rawList.map((item, index) => {
-    // 기술 스택/태그 파싱
     let techStack = [];
     if (Array.isArray(item.techStack)) {
-      techStack = item.techStack;
+      techStack = item.techStack.filter(Boolean);
     } else if (typeof item.techStack === "string") {
       techStack = item.techStack.split(",").map(t => t.trim()).filter(Boolean);
-    } else if (typeof item.skills === "string") {
-      techStack = item.skills.split(",").map(t => t.trim()).filter(Boolean);
     }
 
     const tag = item.tag || item.category || "웹사이트";
 
     return {
-      id: item.id || index + 1,
-      title: item.title || item.name || "무제 프로젝트",
-      description: item.description || item.desc || "프로젝트 설명이 등록되지 않았습니다.",
-      thumbnail: (item.thumbnail && item.thumbnail.startsWith("http")) ? item.thumbnail : FALLBACK_THUMBNAIL,
+      id: item.id ? String(item.id) : ("local_" + index + "_" + Date.now()),
+      title: item.title || "무제 프로젝트",
+      description: item.description || "프로젝트 설명이 등록되지 않았습니다.",
+      thumbnail: (item.thumbnail && /^https?:\/\//.test(item.thumbnail)) ? item.thumbnail : FALLBACK_THUMBNAIL,
       tag: tag,
       status: item.status || "운영 중",
-      url: item.url || item.link || "",
-      driveUrl: item.driveUrl || item.driveLink || "",
+      url: item.url || "",
+      driveUrl: item.driveUrl || "",
       techStack: techStack.length > 0 ? techStack : [tag]
     };
   });
 }
 
-/**
- * 상단 시트 연동 상태 닷(Dot) 색상 갱신
- */
+function normalizeCategoriesData(rawList) {
+  const list = rawList.map((item, index) => ({
+    id: item.id ? String(item.id) : ("cat_local_" + index),
+    name: item.name || "미분류",
+    icon: item.icon || "fa-solid fa-folder",
+    color: /^#[0-9a-fA-F]{6}$/.test(item.color) ? item.color : "#00704A",
+    order: (typeof item.order === "number" && !isNaN(item.order)) ? item.order : (index + 1)
+  }));
+  list.sort((a, b) => a.order - b.order);
+  return list;
+}
+
 function updateSyncIndicator(isConnected) {
+  if (!DOM.syncIndicator) return;
   if (isConnected) {
     DOM.syncIndicator.className = "sync-dot connected";
     DOM.syncIndicator.title = "구글 시트 실시간 연결 완료";
   } else {
     DOM.syncIndicator.className = "sync-dot demo";
-    DOM.syncIndicator.title = "데모 샘플 데이터 모드 작동 중";
+    DOM.syncIndicator.title = "시트와 아직 연결되지 않았습니다";
   }
 }
 
+/** 카테고리/통계/필터/목록을 한 번에 다시 그립니다. */
+function renderAll() {
+  renderStatsBar();
+  renderCategoryTabs();
+  applyFilterAndRender();
+}
+
 // ------------------------------------------------------------------------------
-// 5. 검색, 필터링 및 페이지네이션 슬라이싱 로직
+// 6. 통계 바 & 카테고리 탭 렌더링 (동적 카테고리 기반)
 // ------------------------------------------------------------------------------
-/**
- * 현재 선택된 탭, 상태, 검색어에 따라 데이터를 필터링하고
- * 페이지네이션 계산 후 화면에 렌더링합니다.
- */
+function renderStatsBar() {
+  if (!DOM.statsBar) return;
+
+  const total = state.allProjects.length;
+
+  let html = `
+    <div class="stat-card ${state.selectedCategory === "전체" ? "is-selected" : ""}" data-filter="전체">
+      <div class="stat-icon"><i class="fa-solid fa-layer-group"></i></div>
+      <div class="stat-info">
+        <span class="stat-value">${total}</span>
+        <span class="stat-label">총 프로젝트</span>
+      </div>
+    </div>
+  `;
+
+  state.categories.forEach(cat => {
+    const count = state.allProjects.filter(p => p.tag === cat.name).length;
+    const selected = state.selectedCategory === cat.name ? "is-selected" : "";
+    html += `
+      <div class="stat-card ${selected}" data-filter="${escapeHtml(cat.name)}">
+        <div class="stat-icon" style="background:${hexToRgba(cat.color, 0.15)}; color:${escapeHtml(cat.color)};">
+          <i class="${escapeHtml(cat.icon)}"></i>
+        </div>
+        <div class="stat-info">
+          <span class="stat-value">${count}</span>
+          <span class="stat-label">${escapeHtml(cat.name)}</span>
+        </div>
+      </div>
+    `;
+  });
+
+  DOM.statsBar.innerHTML = html;
+}
+
+function renderCategoryTabs() {
+  if (!DOM.categoryTabs) return;
+
+  let html = `
+    <button class="tab-btn ${state.selectedCategory === "전체" ? "active" : ""}" data-category="전체">
+      <i class="fa-solid fa-border-all"></i> 전체보기
+    </button>
+  `;
+
+  state.categories.forEach(cat => {
+    const active = state.selectedCategory === cat.name ? "active" : "";
+    html += `
+      <button class="tab-btn ${active}" data-category="${escapeHtml(cat.name)}">
+        <i class="${escapeHtml(cat.icon)}"></i> ${escapeHtml(cat.name)}
+      </button>
+    `;
+  });
+
+  DOM.categoryTabs.innerHTML = html;
+}
+
+function getCategoryByName(name) {
+  return state.categories.find(c => c.name === name) || {
+    name: name || "미분류",
+    color: "#5A554C",
+    icon: "fa-solid fa-folder"
+  };
+}
+
+// ------------------------------------------------------------------------------
+// 7. 검색, 필터링 및 페이지네이션 슬라이싱 로직
+// ------------------------------------------------------------------------------
 function applyFilterAndRender() {
   const query = state.searchQuery.toLowerCase().trim();
 
-  // 1) 전체 데이터 필터링
   state.filteredProjects = state.allProjects.filter(project => {
-    // 카테고리 탭 검사
     const matchCategory = (state.selectedCategory === "전체") || (project.tag === state.selectedCategory);
-
-    // 운영 상태 검사
     const matchStatus = (state.selectedStatus === "전체") || (project.status === state.selectedStatus);
 
-    // 검색어 매칭 검사 (제목, 설명, 태그)
     let matchQuery = true;
     if (query) {
       const inTitle = (project.title || "").toLowerCase().includes(query);
-      const inDesc  = (project.description || "").toLowerCase().includes(query);
-      const inTech  = (project.techStack || []).some(tech => tech.toLowerCase().includes(query));
-      const inTag   = (project.tag || "").toLowerCase().includes(query);
+      const inDesc = (project.description || "").toLowerCase().includes(query);
+      const inTech = (project.techStack || []).some(t => t.toLowerCase().includes(query));
+      const inTag = (project.tag || "").toLowerCase().includes(query);
       matchQuery = inTitle || inDesc || inTech || inTag;
     }
 
@@ -271,9 +413,9 @@ function applyFilterAndRender() {
   const totalCount = state.filteredProjects.length;
   DOM.currentCount.textContent = totalCount;
 
-  // 2) 결과가 0개인 경우 빈 화면 처리
   if (totalCount === 0) {
     DOM.projectGrid.innerHTML = "";
+    DOM.projectGrid.style.gridTemplateColumns = "";
     DOM.emptyState.classList.remove("hidden");
     DOM.paginationContainer.classList.add("hidden");
     DOM.displayRangeInfo.textContent = "0-0";
@@ -282,12 +424,10 @@ function applyFilterAndRender() {
 
   DOM.emptyState.classList.add("hidden");
 
-  // 3) 페이지네이션 계산
   let pagedProjects = [];
   let totalPages = 1;
 
   if (state.itemsPerPage === "all") {
-    // 전체보기인 경우 슬라이싱 없이 전체 표시
     pagedProjects = state.filteredProjects;
     totalPages = 1;
     state.currentPage = 1;
@@ -296,10 +436,7 @@ function applyFilterAndRender() {
     const perPage = parseInt(state.itemsPerPage, 10) || 12;
     totalPages = Math.ceil(totalCount / perPage);
 
-    // 현재 페이지가 전체 페이지 수를 벗어난 경우 1페이지로 보정
-    if (state.currentPage > totalPages) {
-      state.currentPage = 1;
-    }
+    if (state.currentPage > totalPages) state.currentPage = 1;
 
     const startIndex = (state.currentPage - 1) * perPage;
     const endIndex = Math.min(startIndex + perPage, totalCount);
@@ -308,103 +445,124 @@ function applyFilterAndRender() {
     DOM.displayRangeInfo.textContent = `${startIndex + 1}-${endIndex}`;
   }
 
-  // 4) 프로젝트 목록 렌더링 (카드 뷰 또는 리스트 뷰)
   renderProjects(pagedProjects);
-
-  // 5) 페이지네이션 버튼 바 렌더링
   renderPagination(totalPages, state.currentPage);
 }
 
 // ------------------------------------------------------------------------------
-// 6. 프로젝트 목록 렌더링 (카드 그리드 뷰 vs 리스트 목록 뷰)
+// 8. 프로젝트 목록 렌더링 (카드 그리드 뷰 vs 리스트 뷰)
 // ------------------------------------------------------------------------------
-/**
- * 현재 보기 형태(state.viewMode)에 맞춰 HTML을 생성하고 DOM에 주입합니다.
- */
 function renderProjects(projects) {
   if (state.viewMode === "list") {
-    // 리스트 뷰 레이아웃 적용
     DOM.projectGrid.className = "project-grid list-view";
-    DOM.projectGrid.innerHTML = projects.map(project => createListItemHtml(project)).join("");
+    DOM.projectGrid.style.gridTemplateColumns = "";
+    DOM.projectGrid.innerHTML = projects.map(p => createListItemHtml(p)).join("");
   } else {
-    // 카드 그리드 뷰 레이아웃 적용
     DOM.projectGrid.className = "project-grid";
-    DOM.projectGrid.innerHTML = projects.map(project => createCardItemHtml(project)).join("");
+    applyGridColumns();
+    DOM.projectGrid.innerHTML = projects.map(p => createCardItemHtml(p)).join("");
   }
 }
 
-/**
- * [카드 뷰] 개별 카드 아이템 HTML 생성
- */
-function createCardItemHtml(project) {
-  const tagClass = `tag-${escapeHtml(project.tag)}`;
-  const statusNormalized = project.status.replace(/\s+/g, "");
-  const statusClass = `status-${statusNormalized}`;
+/** 가로 열 개수 선택값을 실제 그리드 컬럼 수로 적용합니다. */
+function applyGridColumns() {
+  if (!DOM.projectGrid) return;
+  if (state.gridCols === "auto") {
+    DOM.projectGrid.style.gridTemplateColumns = "repeat(auto-fill, minmax(260px, 1fr))";
+  } else {
+    DOM.projectGrid.style.gridTemplateColumns = `repeat(${parseInt(state.gridCols, 10) || 3}, 1fr)`;
+  }
+}
 
-  // 태그 칩 (최대 3개 노출)
+function renderSkeleton() {
+  DOM.projectGrid.className = "project-grid";
+  applyGridColumns();
+  DOM.emptyState.classList.add("hidden");
+  DOM.paginationContainer.classList.add("hidden");
+
+  let html = "";
+  for (let i = 0; i < 6; i++) {
+    html += `
+      <div class="project-card skeleton-card" aria-hidden="true">
+        <div class="skeleton-block skeleton-thumb"></div>
+        <div class="card-body">
+          <div class="skeleton-block skeleton-line" style="width:70%;"></div>
+          <div class="skeleton-block skeleton-line" style="width:100%;"></div>
+          <div class="skeleton-block skeleton-line" style="width:85%;"></div>
+        </div>
+      </div>
+    `;
+  }
+  DOM.projectGrid.innerHTML = html;
+}
+
+function categoryBadgeStyle(colorHex) {
+  return `background:${hexToRgba(colorHex, 0.16)}; color:${colorHex}; border:1px solid ${hexToRgba(colorHex, 0.35)};`;
+}
+
+function createCardItemHtml(project) {
+  const cat = getCategoryByName(project.tag);
+  const statusClass = `status-${project.status.replace(/\s+/g, "")}`;
+
   const displayTech = (project.techStack || []).slice(0, 3);
   const techMoreCount = (project.techStack || []).length - displayTech.length;
-  const techChipsHtml = displayTech.map(tech => `
-    <span class="tech-chip">#${escapeHtml(tech)}</span>
-  `).join("") + (techMoreCount > 0 ? `<span class="tech-chip">+${techMoreCount}</span>` : "");
+  const techChipsHtml = displayTech.map(tech => `<span class="tech-chip">#${escapeHtml(tech)}</span>`).join("")
+    + (techMoreCount > 0 ? `<span class="tech-chip">+${techMoreCount}</span>` : "");
 
-  // 액션 버튼 구성
-  let actionBtnHtml = "";
+  let linkActionHtml = "";
   if (project.url) {
-    actionBtnHtml = `
-      <a href="${escapeHtml(project.url)}" target="_blank" rel="noopener noreferrer" class="btn-card-action primary" onclick="event.stopPropagation()">
+    linkActionHtml = `
+      <a href="${escapeHtml(project.url)}" target="_blank" rel="noopener noreferrer" class="btn-card-action primary" data-action="link">
         <i class="fa-solid fa-arrow-up-right-from-square"></i> 바로가기
       </a>
     `;
   } else if (project.driveUrl) {
-    actionBtnHtml = `
-      <a href="${escapeHtml(project.driveUrl)}" target="_blank" rel="noopener noreferrer" class="btn-card-action download" onclick="event.stopPropagation()">
+    linkActionHtml = `
+      <a href="${escapeHtml(project.driveUrl)}" target="_blank" rel="noopener noreferrer" class="btn-card-action download" data-action="link">
         <i class="fa-solid fa-cloud-arrow-down"></i> 다운로드
       </a>
     `;
   } else {
-    actionBtnHtml = `
-      <button class="btn-card-action primary" onclick="openDetailModal(${project.id}); event.stopPropagation();">
+    linkActionHtml = `
+      <button class="btn-card-action primary" data-action="detail">
         <i class="fa-solid fa-circle-info"></i> 상세 정보
       </button>
     `;
   }
 
   return `
-    <article class="project-card" onclick="openDetailModal(${project.id})">
-      <!-- 카드 썸네일 -->
+    <article class="project-card" data-id="${escapeHtml(project.id)}">
       <div class="card-thumbnail-box">
-        <img src="${escapeHtml(project.thumbnail)}" 
-             alt="${escapeHtml(project.title)}" 
-             class="card-img" 
+        <img src="${escapeHtml(project.thumbnail)}"
+             alt="${escapeHtml(project.title)}"
+             class="card-img"
              loading="lazy"
              onerror="this.onerror=null; this.src='${FALLBACK_THUMBNAIL}';">
-        
+
         <div class="card-badges">
-          <span class="card-badge ${tagClass}">
-            ${escapeHtml(project.tag)}
+          <span class="card-badge" style="${categoryBadgeStyle(cat.color)}">
+            <i class="${escapeHtml(cat.icon)}"></i> ${escapeHtml(project.tag)}
           </span>
           <span class="status-badge ${statusClass}">
             <span class="dot"></span> ${escapeHtml(project.status)}
           </span>
         </div>
-      </div>
 
-      <!-- 카드 본문 -->
-      <div class="card-body">
-        <h3 class="card-title">${escapeHtml(project.title)}</h3>
-        <p class="card-desc">${escapeHtml(project.description)}</p>
-
-        <!-- 태그 칩 -->
-        <div class="card-tech-list">
-          ${techChipsHtml}
+        <div class="card-quick-actions">
+          <button class="btn-quick-action" data-action="edit" title="수정"><i class="fa-solid fa-pen"></i></button>
+          <button class="btn-quick-action danger" data-action="delete" title="삭제"><i class="fa-solid fa-trash-can"></i></button>
         </div>
       </div>
 
-      <!-- 카드 하단 버튼 -->
+      <div class="card-body">
+        <h3 class="card-title" data-action="detail">${escapeHtml(project.title)}</h3>
+        <p class="card-desc">${escapeHtml(project.description)}</p>
+        <div class="card-tech-list">${techChipsHtml}</div>
+      </div>
+
       <div class="card-footer">
-        ${actionBtnHtml}
-        <button class="btn-card-detail" title="자세히 보기" onclick="openDetailModal(${project.id}); event.stopPropagation();">
+        ${linkActionHtml}
+        <button class="btn-card-detail" title="자세히 보기" data-action="detail">
           <i class="fa-solid fa-expand"></i>
         </button>
       </div>
@@ -412,71 +570,62 @@ function createCardItemHtml(project) {
   `;
 }
 
-/**
- * [리스트 뷰] 개별 가로 행 아이템 HTML 생성
- */
 function createListItemHtml(project) {
-  const tagClass = `tag-${escapeHtml(project.tag)}`;
-  const statusNormalized = project.status.replace(/\s+/g, "");
-  const statusClass = `status-${statusNormalized}`;
+  const cat = getCategoryByName(project.tag);
+  const statusClass = `status-${project.status.replace(/\s+/g, "")}`;
 
-  // 태그 칩 (최대 2개 노출)
   const displayTech = (project.techStack || []).slice(0, 2);
-  const techChipsHtml = displayTech.map(tech => `
-    <span class="tech-chip">#${escapeHtml(tech)}</span>
-  `).join("");
+  const techChipsHtml = displayTech.map(tech => `<span class="tech-chip">#${escapeHtml(tech)}</span>`).join("");
 
-  // 액션 버튼 구성
-  let actionBtnHtml = "";
+  let linkActionHtml = "";
   if (project.url) {
-    actionBtnHtml = `
-      <a href="${escapeHtml(project.url)}" target="_blank" rel="noopener noreferrer" class="btn-list-action primary" onclick="event.stopPropagation()">
-        <i class="fa-solid fa-arrow-up-right-from-square"></i> 바로가기
+    linkActionHtml = `
+      <a href="${escapeHtml(project.url)}" target="_blank" rel="noopener noreferrer" class="btn-list-action primary" data-action="link">
+        <i class="fa-solid fa-arrow-up-right-from-square"></i> <span class="btn-label-text">바로가기</span>
       </a>
     `;
   } else if (project.driveUrl) {
-    actionBtnHtml = `
-      <a href="${escapeHtml(project.driveUrl)}" target="_blank" rel="noopener noreferrer" class="btn-list-action download" onclick="event.stopPropagation()">
-        <i class="fa-solid fa-cloud-arrow-down"></i> 다운로드
+    linkActionHtml = `
+      <a href="${escapeHtml(project.driveUrl)}" target="_blank" rel="noopener noreferrer" class="btn-list-action download" data-action="link">
+        <i class="fa-solid fa-cloud-arrow-down"></i> <span class="btn-label-text">다운로드</span>
       </a>
     `;
   }
 
   return `
-    <div class="project-list-item" onclick="openDetailModal(${project.id})">
-      <!-- 좌측 미니 썸네일 -->
+    <div class="project-list-item" data-id="${escapeHtml(project.id)}">
       <div class="list-thumb-box">
-        <img src="${escapeHtml(project.thumbnail)}" 
-             alt="${escapeHtml(project.title)}" 
-             class="list-thumb-img" 
+        <img src="${escapeHtml(project.thumbnail)}"
+             alt="${escapeHtml(project.title)}"
+             class="list-thumb-img"
              loading="lazy"
              onerror="this.onerror=null; this.src='${FALLBACK_THUMBNAIL}';">
       </div>
 
-      <!-- 중앙 정보 영역 -->
-      <div class="list-content-box">
+      <div class="list-content-box" data-action="detail">
         <div class="list-header">
           <h3 class="list-title">${escapeHtml(project.title)}</h3>
           <div class="list-badges">
-            <span class="card-badge ${tagClass}">${escapeHtml(project.tag)}</span>
+            <span class="card-badge" style="${categoryBadgeStyle(cat.color)}">${escapeHtml(project.tag)}</span>
             <span class="status-badge ${statusClass}">
               <span class="dot"></span> ${escapeHtml(project.status)}
             </span>
           </div>
         </div>
-
         <p class="list-desc">${escapeHtml(project.description)}</p>
-
-        <div class="list-tags">
-          ${techChipsHtml}
-        </div>
+        <div class="list-tags">${techChipsHtml}</div>
       </div>
 
-      <!-- 우측 액션 버튼 영역 -->
       <div class="list-actions-box">
-        ${actionBtnHtml}
-        <button class="btn-list-action detail" title="자세히 보기" onclick="openDetailModal(${project.id}); event.stopPropagation();">
+        ${linkActionHtml}
+        <button class="btn-list-action detail" title="자세히 보기" data-action="detail">
           <i class="fa-solid fa-expand"></i>
+        </button>
+        <button class="btn-list-action edit" title="수정" data-action="edit">
+          <i class="fa-solid fa-pen"></i>
+        </button>
+        <button class="btn-list-action delete" title="삭제" data-action="delete">
+          <i class="fa-solid fa-trash-can"></i>
         </button>
       </div>
     </div>
@@ -484,13 +633,9 @@ function createListItemHtml(project) {
 }
 
 // ------------------------------------------------------------------------------
-// 7. 페이지네이션 컨트롤러 렌더링
+// 9. 페이지네이션 컨트롤러 렌더링
 // ------------------------------------------------------------------------------
-/**
- * 총 페이지 수와 현재 페이지에 맞춰 페이지 이동 버튼들을 생성합니다.
- */
 function renderPagination(totalPages, currentPage) {
-  // 페이지가 1개 이하이거나 전체보기 모드이면 페이지네이션 바를 숨깁니다.
   if (totalPages <= 1 || state.itemsPerPage === "all") {
     DOM.paginationContainer.classList.add("hidden");
     DOM.paginationContainer.innerHTML = "";
@@ -500,54 +645,35 @@ function renderPagination(totalPages, currentPage) {
   DOM.paginationContainer.classList.remove("hidden");
 
   let html = "";
-
-  // 1) 이전 페이지 버튼
   const prevDisabled = currentPage === 1 ? "disabled" : "";
   html += `
-    <button class="btn-page-nav" ${prevDisabled} onclick="goToPage(${currentPage - 1})" aria-label="이전 페이지">
+    <button class="btn-page-nav" ${prevDisabled} data-page="${currentPage - 1}" aria-label="이전 페이지">
       <i class="fa-solid fa-chevron-left"></i> 이전
     </button>
   `;
 
-  // 2) 페이지 번호 버튼 목록 생성 (스마트 페이징: 최대 7개 구간 표시)
   const maxButtons = 5;
   let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
   let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+  if (endPage - startPage + 1 < maxButtons) startPage = Math.max(1, endPage - maxButtons + 1);
 
-  if (endPage - startPage + 1 < maxButtons) {
-    startPage = Math.max(1, endPage - maxButtons + 1);
-  }
-
-  // 첫 페이지 표시
   if (startPage > 1) {
-    html += `<button class="btn-page-number" onclick="goToPage(1)">1</button>`;
-    if (startPage > 2) {
-      html += `<span class="page-ellipsis">...</span>`;
-    }
+    html += `<button class="btn-page-number" data-page="1">1</button>`;
+    if (startPage > 2) html += `<span class="page-ellipsis">...</span>`;
   }
 
-  // 번호 버튼들
   for (let p = startPage; p <= endPage; p++) {
-    const activeClass = p === currentPage ? "active" : "";
-    html += `
-      <button class="btn-page-number ${activeClass}" onclick="goToPage(${p})">
-        ${p}
-      </button>
-    `;
+    html += `<button class="btn-page-number ${p === currentPage ? "active" : ""}" data-page="${p}">${p}</button>`;
   }
 
-  // 마지막 페이지 표시
   if (endPage < totalPages) {
-    if (endPage < totalPages - 1) {
-      html += `<span class="page-ellipsis">...</span>`;
-    }
-    html += `<button class="btn-page-number" onclick="goToPage(${totalPages})">${totalPages}</button>`;
+    if (endPage < totalPages - 1) html += `<span class="page-ellipsis">...</span>`;
+    html += `<button class="btn-page-number" data-page="${totalPages}">${totalPages}</button>`;
   }
 
-  // 3) 다음 페이지 버튼
   const nextDisabled = currentPage === totalPages ? "disabled" : "";
   html += `
-    <button class="btn-page-nav" ${nextDisabled} onclick="goToPage(${currentPage + 1})" aria-label="다음 페이지">
+    <button class="btn-page-nav" ${nextDisabled} data-page="${currentPage + 1}" aria-label="다음 페이지">
       다음 <i class="fa-solid fa-chevron-right"></i>
     </button>
   `;
@@ -555,93 +681,77 @@ function renderPagination(totalPages, currentPage) {
   DOM.paginationContainer.innerHTML = html;
 }
 
-/**
- * 특정 페이지로 이동하고 상단 프로젝트 목록 위치로 부드럽게 스크롤합니다.
- */
 function goToPage(pageNum) {
   state.currentPage = pageNum;
   applyFilterAndRender();
-
-  // 상단 목록 영역으로 부드러운 스크롤 이동
   DOM.projectGrid.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 // ------------------------------------------------------------------------------
-// 8. 보기 모드 전환 (카드 뷰 ↔ 리스트 뷰)
+// 10. 보기 모드 전환 (카드 뷰 ↔ 리스트 뷰)
 // ------------------------------------------------------------------------------
-/**
- * 보기 모드를 변경하고 로컬스토리지에 저장 후 화면을 즉시 갱신합니다.
- */
 function setViewMode(mode) {
   if (state.viewMode === mode) return;
-
   state.viewMode = mode;
   localStorage.setItem("soocheon_view_mode", mode);
   updateViewModeButtons();
-  renderProjects(state.filteredProjects.slice(
-    state.itemsPerPage === "all" ? 0 : (state.currentPage - 1) * parseInt(state.itemsPerPage, 10),
-    state.itemsPerPage === "all" ? undefined : (state.currentPage - 1) * parseInt(state.itemsPerPage, 10) + parseInt(state.itemsPerPage, 10)
-  ));
+  applyFilterAndRender();
 }
 
-/**
- * 뷰 모드 토글 버튼의 활성화(active) 클래스를 갱신합니다.
- */
 function updateViewModeButtons() {
-  if (DOM.btnViewGrid && DOM.btnViewList) {
-    if (state.viewMode === "list") {
-      DOM.btnViewList.classList.add("active");
-      DOM.btnViewGrid.classList.remove("active");
-    } else {
-      DOM.btnViewGrid.classList.add("active");
-      DOM.btnViewList.classList.remove("active");
-    }
+  if (!DOM.btnViewGrid || !DOM.btnViewList) return;
+  if (state.viewMode === "list") {
+    DOM.btnViewList.classList.add("active");
+    DOM.btnViewGrid.classList.remove("active");
+  } else {
+    DOM.btnViewGrid.classList.add("active");
+    DOM.btnViewList.classList.remove("active");
   }
 }
 
 // ------------------------------------------------------------------------------
-// 9. 통계 지표(Stats Bar) 계산 및 갱신
+// 11. 공용 모달 열기/닫기
 // ------------------------------------------------------------------------------
-function updateStatistics() {
-  const total = state.allProjects.length;
-  const webCount = state.allProjects.filter(p => p.tag === "웹사이트").length;
-  const appCount = state.allProjects.filter(p => p.tag === "프로그램").length;
-  const scriptCount = state.allProjects.filter(p => p.tag === "스크립트").length;
+function openModal(el) {
+  if (!el) return;
+  el.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+}
 
-  DOM.statTotal.textContent = total;
-  DOM.statWeb.textContent = webCount;
-  DOM.statApp.textContent = appCount;
-  DOM.statScript.textContent = scriptCount;
+function closeModal(el) {
+  if (!el) return;
+  el.classList.add("hidden");
+  document.body.style.overflow = "";
+}
+
+function closeAllModals() {
+  document.querySelectorAll(".modal-overlay:not(.hidden)").forEach(m => closeModal(m));
 }
 
 // ------------------------------------------------------------------------------
-// 10. 모달(상세 보기 & 시트 설정) 제어
+// 12. 프로젝트 상세 보기 모달
 // ------------------------------------------------------------------------------
-/**
- * 프로젝트 상세 정보 모달 열기
- */
 function openDetailModal(projectId) {
   const project = state.allProjects.find(p => p.id === projectId);
   if (!project) return;
+
+  const cat = getCategoryByName(project.tag);
 
   DOM.modalTitle.textContent = project.title;
   DOM.modalDescription.textContent = project.description;
   DOM.modalThumbnail.src = project.thumbnail;
   DOM.modalThumbnail.onerror = () => { DOM.modalThumbnail.src = FALLBACK_THUMBNAIL; };
 
-  // 배지 설정
   DOM.modalCategoryBadge.textContent = project.tag;
-  DOM.modalCategoryBadge.className = `card-badge tag-${project.tag}`;
+  DOM.modalCategoryBadge.setAttribute("style", categoryBadgeStyle(cat.color));
 
   DOM.modalStatusBadge.textContent = project.status;
-  DOM.modalStatusBadge.className = `card-badge status-${project.status.replace(/\s+/g, "")}`;
+  DOM.modalStatusBadge.className = `card-badge status-badge status-${project.status.replace(/\s+/g, "")}`;
 
-  // 기술 스택 칩 목록
-  DOM.modalTechStack.innerHTML = (project.techStack || []).map(tech => `
-    <span class="tech-tag-chip">#${escapeHtml(tech)}</span>
-  `).join("");
+  DOM.modalTechStack.innerHTML = (project.techStack || [])
+    .map(tech => `<span class="tech-tag-pill">#${escapeHtml(tech)}</span>`)
+    .join("");
 
-  // 액션 버튼 구성
   let actionsHtml = "";
   if (project.url) {
     actionsHtml += `
@@ -657,34 +767,38 @@ function openDetailModal(projectId) {
       </a>
     `;
   }
+  actionsHtml += `
+    <button type="button" class="btn-secondary" id="modalEditBtn">
+      <i class="fa-solid fa-pen"></i> 수정
+    </button>
+    <button type="button" class="btn-danger" id="modalDeleteBtn">
+      <i class="fa-solid fa-trash-can"></i> 삭제
+    </button>
+  `;
   DOM.modalActions.innerHTML = actionsHtml;
 
-  // 모달 표시
-  DOM.detailModal.classList.remove("hidden");
-  document.body.style.overflow = "hidden"; // 배경 스크롤 방지
-}
+  document.getElementById("modalEditBtn").addEventListener("click", () => {
+    closeModal(DOM.detailModal);
+    openProjectForm("edit", project.id);
+  });
+  document.getElementById("modalDeleteBtn").addEventListener("click", () => {
+    closeModal(DOM.detailModal);
+    requestDeleteProject(project.id);
+  });
 
-function closeDetailModal() {
-  DOM.detailModal.classList.add("hidden");
-  document.body.style.overflow = "";
-}
-
-/**
- * 구글 시트 연동 설정 모달 열기/닫기
- */
-function openSettingsModal() {
-  DOM.inputSheetUrl.value = state.sheetUrl;
-  DOM.settingsModal.classList.remove("hidden");
-  document.body.style.overflow = "hidden";
-}
-
-function closeSettingsModal() {
-  DOM.settingsModal.classList.add("hidden");
-  document.body.style.overflow = "";
+  openModal(DOM.detailModal);
 }
 
 // ------------------------------------------------------------------------------
-// 11. 테마(다크/라이트) 전환
+// 13. 구글 시트 연동 설정 모달
+// ------------------------------------------------------------------------------
+function openSettingsModal() {
+  DOM.inputSheetUrl.value = state.sheetUrl;
+  openModal(DOM.settingsModal);
+}
+
+// ------------------------------------------------------------------------------
+// 14. 테마(다크/라이트) 전환
 // ------------------------------------------------------------------------------
 function applyTheme(themeName) {
   state.theme = themeName;
@@ -704,101 +818,423 @@ function applyTheme(themeName) {
 function toggleTheme() {
   const newTheme = state.theme === "light" ? "dark" : "light";
   applyTheme(newTheme);
-  showToast(`${newTheme === "dark" ? "리저브 다크" : "크림 라이트"} 테마가 적용되었습니다.`);
 }
 
 // ------------------------------------------------------------------------------
-// 8. 새 프로젝트 등록 (POST 데이터 쓰기)
+// 15. 구글 시트 통신 헬퍼
 // ------------------------------------------------------------------------------
-/**
- * 웹 화면에서 직접 입력한 데이터를 모아 구글 시트로 전송합니다.
- */
-async function submitNewProject() {
-  const url = DOM.addUrl.value.trim();
-  const title = DOM.addTitle.value.trim();
-  
-  // 필수 항목 유효성 검사
+async function postToSheet(bodyObj) {
+  if (!state.sheetUrl) {
+    throw new Error("먼저 [시트 연동]에서 Apps Script URL을 등록해주세요.");
+  }
+
+  const response = await fetch(state.sheetUrl, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(bodyObj)
+  });
+
+  if (!response.ok) {
+    throw new Error("서버 응답 오류 (HTTP " + response.status + ")");
+  }
+
+  return await response.json();
+}
+
+// ------------------------------------------------------------------------------
+// 16. 프로젝트 등록 / 수정 폼 모달
+// ------------------------------------------------------------------------------
+function populateCategorySelect(selectEl, selectedName) {
+  if (!selectEl) return;
+  selectEl.innerHTML = state.categories.map(cat =>
+    `<option value="${escapeHtml(cat.name)}">${escapeHtml(cat.name)}</option>`
+  ).join("");
+  if (selectedName) selectEl.value = selectedName;
+}
+
+function openProjectForm(mode, projectId) {
+  state.formMode = mode;
+  state.editingProjectId = projectId || null;
+
+  populateCategorySelect(DOM.fCategory);
+
+  if (mode === "edit") {
+    const project = state.allProjects.find(p => p.id === projectId);
+    if (!project) return;
+
+    DOM.projectFormTitle.textContent = "프로젝트 수정";
+    DOM.projectFormDesc.textContent = "수정한 내용은 구글 시트에도 즉시 반영됩니다.";
+    DOM.projectFormIcon.className = "fa-solid fa-pen";
+    DOM.projectFormSubmitText.textContent = "수정 내용 저장!";
+
+    DOM.fUrl.value = project.url || "";
+    DOM.fTitle.value = project.title || "";
+    DOM.fDesc.value = project.description || "";
+    DOM.fCategory.value = project.tag || "";
+    DOM.fStatus.value = project.status || "운영 중";
+    DOM.fThumbnail.value = project.thumbnail === FALLBACK_THUMBNAIL ? "" : (project.thumbnail || "");
+    DOM.fDriveUrl.value = project.driveUrl || "";
+    DOM.fTechStack.value = (project.techStack || []).join(", ");
+  } else {
+    DOM.projectFormTitle.textContent = "새 프로젝트 등록";
+    DOM.projectFormDesc.textContent = "여기서 입력한 내용은 구글 시트에 자동으로 쏙! 추가됩니다.";
+    DOM.projectFormIcon.className = "fa-solid fa-pen-to-square";
+    DOM.projectFormSubmitText.textContent = "구글 시트로 전송!";
+
+    DOM.fUrl.value = "";
+    DOM.fTitle.value = "";
+    DOM.fDesc.value = "";
+    DOM.fCategory.value = state.selectedCategory !== "전체" ? state.selectedCategory : (state.categories[0] ? state.categories[0].name : "");
+    DOM.fStatus.value = "운영 중";
+    DOM.fThumbnail.value = "";
+    DOM.fDriveUrl.value = "";
+    DOM.fTechStack.value = "";
+  }
+
+  openModal(DOM.projectFormModal);
+}
+
+async function submitProjectForm() {
+  const url = DOM.fUrl.value.trim();
+  const title = DOM.fTitle.value.trim();
+
   if (!url || !title) {
     showToast("URL과 프로젝트 제목은 필수입니다!", "error");
     return;
   }
-  
-  // 연동 확인: 데모 상태인 경우 실제 시트 URL 등록 안내
-  if (!state.sheetUrl || state.sheetUrl === CONFIG.SHEET_API_URL) {
-    showToast("먼저 우측 상단 '시트 연동'에 본인의 Apps Script URL을 등록해주세요.", "error");
-    openModal(DOM.settingsModal); // 설정 모달 바로 열어주기
+
+  if (!state.sheetUrl) {
+    showToast("먼저 우측 상단 [시트 연동]에 Apps Script URL을 등록해주세요.", "error");
+    closeModal(DOM.projectFormModal);
+    openSettingsModal();
     return;
   }
 
-  // 버튼 로딩 상태로 변경 (사용자가 여러번 누르는 것 방지)
-  const originalBtnText = DOM.btnSubmitProject.innerHTML;
-  DOM.btnSubmitProject.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 전송 중...';
-  DOM.btnSubmitProject.disabled = true;
-
-  // 구글 시트로 보낼 데이터 객체 조립
   const payload = {
-    url: url,
-    title: title,
-    description: DOM.addDesc.value.trim(),
-    tag: DOM.addCategory.value,
-    thumbnail: DOM.addThumbnail.value.trim()
+    url,
+    title,
+    description: DOM.fDesc.value.trim(),
+    tag: DOM.fCategory.value,
+    status: DOM.fStatus.value,
+    thumbnail: DOM.fThumbnail.value.trim(),
+    driveUrl: DOM.fDriveUrl.value.trim(),
+    techStack: DOM.fTechStack.value.trim()
   };
 
+  const btn = DOM.btnSubmitProjectForm;
+  const originalHtml = btn.innerHTML;
+  btn.disabled = true;
+
+  if (state.formMode === "edit") {
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 저장 중...';
+    const id = state.editingProjectId;
+    closeModal(DOM.projectFormModal);
+    await submitProjectEdit(id, payload);
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+    return;
+  }
+
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 등록 중...';
   try {
-    // Fetch API를 사용하여 POST 요청 (Apps Script로 전송)
-    // 구글 Apps Script CORS 이슈 방지를 위해 text/plain 으로 전송
-    const response = await fetch(state.sheetUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'text/plain;charset=utf-8', 
-      },
-      body: JSON.stringify(payload)
-    });
-    
-    // Apps Script의 doPost가 반환하는 JSON 파싱
-    const result = await response.json();
-    
-    if (result.success) {
-      showToast("새 프로젝트가 시트에 성공적으로 등록되었습니다! 🎉", "success");
-      closeModal(DOM.addProjectModal);
-      
-      // 입력 폼 깨끗하게 비우기
-      DOM.addUrl.value = "";
-      DOM.addTitle.value = "";
-      DOM.addDesc.value = "";
-      DOM.addThumbnail.value = "";
-      
-      // 방금 추가한 항목이 화면에 바로 보이도록 시트 데이터 새로고침
-      fetchDataFromSheet();
-    } else {
-      showToast("등록 실패: " + result.message, "error");
-    }
+    await submitProjectCreate(payload);
+    showToast("새 프로젝트가 등록되었습니다! 🎉", "success");
+    closeModal(DOM.projectFormModal);
   } catch (error) {
-    showToast("전송 중 오류가 발생했습니다. (콘솔 확인)", "error");
-    console.error("POST 전송 오류:", error);
+    console.error(error);
+    showToast("등록 실패: " + error.message, "error");
   } finally {
-    // 버튼 텍스트와 활성화 상태 원상복구
-    DOM.btnSubmitProject.innerHTML = originalBtnText;
-    DOM.btnSubmitProject.disabled = false;
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+  }
+}
+
+async function submitProjectCreate(payload) {
+  const res = await postToSheet({ action: "project.create", project: payload });
+  if (!res.success) throw new Error(res.message || "등록에 실패했습니다.");
+
+  const newId = res.data && res.data.id;
+  const newProject = normalizeProjectsData([Object.assign({}, payload, { id: newId })])[0];
+  state.allProjects.push(newProject);
+  writeCache({ projects: state.allProjects, categories: state.categories });
+  renderAll();
+}
+
+/** 수정은 낙관적(optimistic) 업데이트: 화면을 먼저 바꾸고, 실패하면 되돌립니다. */
+async function submitProjectEdit(id, payload) {
+  const idx = state.allProjects.findIndex(p => p.id === id);
+  const previous = idx >= 0 ? Object.assign({}, state.allProjects[idx]) : null;
+
+  if (idx >= 0) {
+    const merged = normalizeProjectsData([Object.assign({}, payload, { id })])[0];
+    state.allProjects[idx] = merged;
+    writeCache({ projects: state.allProjects, categories: state.categories });
+    renderAll();
+  }
+
+  try {
+    const res = await postToSheet({ action: "project.update", project: Object.assign({ id }, payload) });
+    if (!res.success) throw new Error(res.message || "수정에 실패했습니다.");
+    showToast("프로젝트가 수정되었습니다. ✏️", "success");
+  } catch (error) {
+    console.error(error);
+    if (previous && idx >= 0) {
+      state.allProjects[idx] = previous;
+      writeCache({ projects: state.allProjects, categories: state.categories });
+      renderAll();
+    }
+    showToast("수정 실패: " + error.message, "error");
+  }
+}
+
+function requestDeleteProject(id) {
+  const project = state.allProjects.find(p => p.id === id);
+  if (!project) return;
+
+  openConfirmModal({
+    title: "프로젝트를 삭제할까요?",
+    desc: `'${project.title}' 항목이 구글 시트에서도 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.`,
+    onConfirm: () => performDeleteProject(id)
+  });
+}
+
+/** 삭제도 낙관적 업데이트: 즉시 화면에서 지우고, 실패 시 되돌립니다. */
+async function performDeleteProject(id) {
+  const idx = state.allProjects.findIndex(p => p.id === id);
+  const removed = idx >= 0 ? state.allProjects[idx] : null;
+
+  if (idx >= 0) {
+    state.allProjects.splice(idx, 1);
+    writeCache({ projects: state.allProjects, categories: state.categories });
+    renderAll();
+  }
+
+  try {
+    const res = await postToSheet({ action: "project.delete", id });
+    if (!res.success) throw new Error(res.message || "삭제에 실패했습니다.");
+    showToast("프로젝트가 삭제되었습니다. 🗑", "success");
+  } catch (error) {
+    console.error(error);
+    if (removed) {
+      state.allProjects.splice(idx, 0, removed);
+      writeCache({ projects: state.allProjects, categories: state.categories });
+      renderAll();
+    }
+    showToast("삭제 실패: " + error.message, "error");
   }
 }
 
 // ------------------------------------------------------------------------------
-// 12. 전체 이벤트 리스너 등록
+// 17. 탭(카테고리) 관리 모달
+// ------------------------------------------------------------------------------
+function openCategoryModal() {
+  renderCategoryManageList();
+  DOM.newCategoryName.value = "";
+  DOM.newCategoryColor.value = "#00704A";
+  openModal(DOM.categoryModal);
+}
+
+function renderCategoryManageList() {
+  const sorted = [...state.categories].sort((a, b) => a.order - b.order);
+
+  DOM.categoryManageList.innerHTML = sorted.map((cat, idx) => `
+    <div class="category-manage-row" data-id="${escapeHtml(cat.id)}">
+      <input type="color" class="color-input" value="${escapeHtml(cat.color)}" data-field="color" title="탭 색상">
+      <input type="text" class="form-input cat-name-input" value="${escapeHtml(cat.name)}" data-field="name">
+      <div class="cat-manage-actions">
+        <button class="btn-icon-mini" data-action="cat-up" ${idx === 0 ? "disabled" : ""} title="위로"><i class="fa-solid fa-arrow-up"></i></button>
+        <button class="btn-icon-mini" data-action="cat-down" ${idx === sorted.length - 1 ? "disabled" : ""} title="아래로"><i class="fa-solid fa-arrow-down"></i></button>
+        <button class="btn-icon-mini" data-action="cat-save" title="이 탭 저장"><i class="fa-solid fa-check"></i></button>
+        <button class="btn-icon-mini danger" data-action="cat-delete" title="탭 삭제"><i class="fa-solid fa-trash-can"></i></button>
+      </div>
+    </div>
+  `).join("");
+}
+
+async function saveCategoryRow(id) {
+  const row = DOM.categoryManageList.querySelector(`[data-id="${cssEscape(id)}"]`);
+  if (!row) return;
+
+  const name = row.querySelector('[data-field="name"]').value.trim();
+  const color = row.querySelector('[data-field="color"]').value;
+
+  if (!name) {
+    showToast("탭 이름을 입력해주세요.", "error");
+    return;
+  }
+
+  try {
+    const res = await postToSheet({ action: "category.update", category: { id, name, color } });
+    if (!res.success) throw new Error(res.message || "탭 수정에 실패했습니다.");
+
+    const cat = state.categories.find(c => c.id === id);
+    const oldName = cat ? cat.name : null;
+
+    if (cat) {
+      cat.name = name;
+      cat.color = color;
+    }
+
+    if (oldName && oldName !== name) {
+      state.allProjects.forEach(p => { if (p.tag === oldName) p.tag = name; });
+      if (state.selectedCategory === oldName) state.selectedCategory = name;
+    }
+
+    writeCache({ projects: state.allProjects, categories: state.categories });
+    renderAll();
+    renderCategoryManageList();
+    showToast("탭 정보가 저장되었습니다.", "success");
+  } catch (error) {
+    console.error(error);
+    showToast("탭 저장 실패: " + error.message, "error");
+  }
+}
+
+function requestDeleteCategory(id) {
+  if (state.categories.length <= 1) {
+    showToast("탭은 최소 1개는 있어야 합니다.", "error");
+    return;
+  }
+
+  const cat = state.categories.find(c => c.id === id);
+  if (!cat) return;
+
+  const others = state.categories.filter(c => c.id !== id);
+  const count = state.allProjects.filter(p => p.tag === cat.name).length;
+  const optionsHtml = others.map(c => `<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>`).join("");
+
+  openConfirmModal({
+    title: `'${cat.name}' 탭을 삭제할까요?`,
+    desc: count > 0
+      ? `이 탭에 속한 프로젝트 ${count}개를 아래에서 고른 탭으로 옮긴 뒤 삭제합니다.`
+      : "이 탭에는 등록된 프로젝트가 없습니다.",
+    extraHtml: count > 0
+      ? `<label class="form-label">프로젝트를 옮길 탭</label>
+         <select id="fallbackCategorySelect" class="form-input">${optionsHtml}</select>`
+      : "",
+    onConfirm: () => {
+      const fallbackSelect = document.getElementById("fallbackCategorySelect");
+      const fallbackName = fallbackSelect ? fallbackSelect.value : (others[0] && others[0].name);
+      performDeleteCategory(id, fallbackName);
+    }
+  });
+}
+
+async function performDeleteCategory(id, fallbackName) {
+  try {
+    const res = await postToSheet({ action: "category.delete", id, fallbackName });
+    if (!res.success) throw new Error(res.message || "탭 삭제에 실패했습니다.");
+
+    const cat = state.categories.find(c => c.id === id);
+    state.categories = state.categories.filter(c => c.id !== id);
+
+    if (cat && fallbackName) {
+      state.allProjects.forEach(p => { if (p.tag === cat.name) p.tag = fallbackName; });
+    }
+    if (state.selectedCategory === (cat && cat.name)) state.selectedCategory = "전체";
+
+    writeCache({ projects: state.allProjects, categories: state.categories });
+    renderAll();
+    renderCategoryManageList();
+    showToast("탭이 삭제되었습니다.", "success");
+  } catch (error) {
+    console.error(error);
+    showToast("탭 삭제 실패: " + error.message, "error");
+  }
+}
+
+async function moveCategoryOrder(id, direction) {
+  const sorted = [...state.categories].sort((a, b) => a.order - b.order);
+  const idx = sorted.findIndex(c => c.id === id);
+  const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+  if (idx < 0 || swapIdx < 0 || swapIdx >= sorted.length) return;
+
+  const tmp = sorted[idx].order;
+  sorted[idx].order = sorted[swapIdx].order;
+  sorted[swapIdx].order = tmp;
+  sorted.sort((a, b) => a.order - b.order);
+
+  renderCategoryManageList();
+
+  try {
+    const res = await postToSheet({ action: "category.reorder", order: sorted.map(c => c.id) });
+    if (!res.success) throw new Error(res.message || "순서 변경에 실패했습니다.");
+    state.categories = sorted;
+    writeCache({ projects: state.allProjects, categories: state.categories });
+    renderAll();
+    renderCategoryManageList();
+  } catch (error) {
+    console.error(error);
+    showToast("탭 순서 변경 실패: " + error.message, "error");
+  }
+}
+
+async function addCategory() {
+  const name = DOM.newCategoryName.value.trim();
+  const color = DOM.newCategoryColor.value || "#00704A";
+
+  if (!name) {
+    showToast("새 탭 이름을 입력해주세요.", "error");
+    return;
+  }
+
+  try {
+    const res = await postToSheet({ action: "category.create", category: { name, color, icon: "fa-solid fa-folder" } });
+    if (!res.success) throw new Error(res.message || "탭 추가에 실패했습니다.");
+
+    state.categories.push({
+      id: res.data && res.data.id,
+      name,
+      color,
+      icon: "fa-solid fa-folder",
+      order: state.categories.length + 1
+    });
+
+    writeCache({ projects: state.allProjects, categories: state.categories });
+    DOM.newCategoryName.value = "";
+    renderAll();
+    renderCategoryManageList();
+    showToast(`'${name}' 탭이 추가되었습니다. 🎉`, "success");
+  } catch (error) {
+    console.error(error);
+    showToast("탭 추가 실패: " + error.message, "error");
+  }
+}
+
+// ------------------------------------------------------------------------------
+// 18. 공용 삭제/확인 모달
+// ------------------------------------------------------------------------------
+function openConfirmModal({ title, desc, extraHtml, onConfirm }) {
+  DOM.confirmModalTitle.textContent = title;
+  DOM.confirmModalDesc.textContent = desc;
+
+  if (extraHtml) {
+    DOM.confirmModalExtra.innerHTML = extraHtml;
+    DOM.confirmModalExtra.classList.remove("hidden");
+  } else {
+    DOM.confirmModalExtra.innerHTML = "";
+    DOM.confirmModalExtra.classList.add("hidden");
+  }
+
+  state.confirmAction = onConfirm;
+  openModal(DOM.confirmModal);
+}
+
+// ------------------------------------------------------------------------------
+// 19. 전체 이벤트 리스너 등록
 // ------------------------------------------------------------------------------
 function setupEventListeners() {
-  // 1) 테마 전환
+  // 테마 전환
   DOM.btnToggleTheme.addEventListener("click", toggleTheme);
 
-  // 2) 실시간 검색어 입력
+  // 실시간 검색
   DOM.searchInput.addEventListener("input", (e) => {
     state.searchQuery = e.target.value;
     DOM.btnClearSearch.classList.toggle("hidden", !state.searchQuery);
-    state.currentPage = 1; // 검색 시 1페이지로 이동
+    state.currentPage = 1;
     applyFilterAndRender();
   });
 
-  // 검색어 초기화 버튼
   DOM.btnClearSearch.addEventListener("click", () => {
     DOM.searchInput.value = "";
     state.searchQuery = "";
@@ -808,171 +1244,199 @@ function setupEventListeners() {
     DOM.searchInput.focus();
   });
 
-  // 3) 카테고리 탭 클릭
+  // 카테고리 탭 클릭 (이벤트 위임)
   DOM.categoryTabs.addEventListener("click", (e) => {
     const btn = e.target.closest(".tab-btn");
     if (!btn) return;
-
-    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-
     state.selectedCategory = btn.dataset.category;
-    state.currentPage = 1; // 탭 변경 시 1페이지로 이동
+    state.currentPage = 1;
+    renderCategoryTabs();
+    renderStatsBar();
     applyFilterAndRender();
   });
 
-  // 4) 상태 드롭다운 필터 변경
+  // 탭 관리 버튼
+  if (DOM.btnManageCategories) {
+    DOM.btnManageCategories.addEventListener("click", openCategoryModal);
+  }
+
+  // 상태 드롭다운 필터
   DOM.statusFilter.addEventListener("change", (e) => {
     state.selectedStatus = e.target.value;
-    state.currentPage = 1; // 상태 변경 시 1페이지로 이동
-    applyFilterAndRender();
-  });
-
-  // 5) 필터 초기화 버튼
-  DOM.btnResetFilters.addEventListener("click", () => {
-    DOM.searchInput.value = "";
-    state.searchQuery = "";
-    DOM.btnClearSearch.classList.add("hidden");
-
-    state.selectedCategory = "전체";
-    document.querySelectorAll(".tab-btn").forEach(b => {
-      b.classList.toggle("active", b.dataset.category === "전체");
-    });
-
-    state.selectedStatus = "전체";
-    DOM.statusFilter.value = "전체";
-
     state.currentPage = 1;
     applyFilterAndRender();
   });
 
-  // 6) 통계 카드 클릭 시 해당 카테고리로 필터링 이동
-  document.querySelectorAll(".stat-card").forEach(card => {
-    card.addEventListener("click", () => {
-      const targetCategory = card.dataset.filter;
-      if (!targetCategory) return;
-
-      state.selectedCategory = targetCategory;
-      document.querySelectorAll(".tab-btn").forEach(b => {
-        b.classList.toggle("active", b.dataset.category === targetCategory);
-      });
-
-      state.currentPage = 1;
-      applyFilterAndRender();
-      DOM.projectGrid.scrollIntoView({ behavior: "smooth" });
-    });
+  // 필터 초기화
+  DOM.btnResetFilters.addEventListener("click", () => {
+    DOM.searchInput.value = "";
+    state.searchQuery = "";
+    DOM.btnClearSearch.classList.add("hidden");
+    state.selectedCategory = "전체";
+    state.selectedStatus = "전체";
+    DOM.statusFilter.value = "전체";
+    state.currentPage = 1;
+    renderCategoryTabs();
+    renderStatsBar();
+    applyFilterAndRender();
   });
 
-  // 7) 서브 툴바: 표시 개수 선택
+  // 통계 카드 클릭 → 해당 카테고리로 필터링 (이벤트 위임)
+  DOM.statsBar.addEventListener("click", (e) => {
+    const card = e.target.closest(".stat-card");
+    if (!card) return;
+    const targetCategory = card.dataset.filter;
+    if (!targetCategory) return;
+
+    state.selectedCategory = targetCategory;
+    state.currentPage = 1;
+    renderCategoryTabs();
+    renderStatsBar();
+    applyFilterAndRender();
+    DOM.projectGrid.scrollIntoView({ behavior: "smooth" });
+  });
+
+  // 가로 열 개수 선택
+  if (DOM.columnSelect) {
+    DOM.columnSelect.addEventListener("change", (e) => {
+      state.gridCols = e.target.value;
+      localStorage.setItem("soocheon_grid_cols", state.gridCols);
+      if (state.viewMode === "grid") applyGridColumns();
+    });
+  }
+
+  // 표시 개수(세로) 선택
   if (DOM.itemsPerPageSelect) {
     DOM.itemsPerPageSelect.addEventListener("change", (e) => {
       state.itemsPerPage = e.target.value;
       localStorage.setItem("soocheon_per_page", state.itemsPerPage);
-      state.currentPage = 1; // 개수 변경 시 1페이지로 이동
+      state.currentPage = 1;
       applyFilterAndRender();
-      showToast(`한 화면에 ${e.target.value === "all" ? "전체" : e.target.value + "개씩"} 표시합니다.`);
     });
   }
 
-  // 8) 서브 툴바: 보기 형태 전환 (카드 뷰 vs 리스트 뷰)
-  if (DOM.btnViewGrid) {
-    DOM.btnViewGrid.addEventListener("click", () => {
-      setViewMode("grid");
-      showToast("카드 그리드 보기로 전환되었습니다. 🔲");
-    });
-  }
-  if (DOM.btnViewList) {
-    DOM.btnViewList.addEventListener("click", () => {
-      setViewMode("list");
-      showToast("리스트 목록 보기로 전환되었습니다. 📋");
-    });
-  }
+  // 보기 형태 전환
+  if (DOM.btnViewGrid) DOM.btnViewGrid.addEventListener("click", () => setViewMode("grid"));
+  if (DOM.btnViewList) DOM.btnViewList.addEventListener("click", () => setViewMode("list"));
 
-  // 9) 실시간 새로고침 버튼
-  DOM.btnReloadData.addEventListener("click", () => {
-    loadProjectData();
-  });
+  // 새로고침 (수동 새로고침이므로 토스트를 띄웁니다)
+  DOM.btnReloadData.addEventListener("click", () => loadProjectData({ manual: true }));
 
-  // 10) 모달 제어
-  DOM.btnCloseModal.addEventListener("click", closeDetailModal);
-  DOM.detailModal.addEventListener("click", (e) => {
-    if (e.target === DOM.detailModal) closeDetailModal();
-  });
+  // 프로젝트 카드/리스트 목록 영역 이벤트 위임 (상세보기 / 수정 / 삭제 / 바로가기)
+  DOM.projectGrid.addEventListener("click", (e) => {
+    const actionEl = e.target.closest("[data-action]");
+    const container = e.target.closest("[data-id]");
+    if (!container) return;
+    const id = container.dataset.id;
 
-  DOM.btnOpenSettings.addEventListener("click", openSettingsModal);
-  DOM.btnCloseSettings.addEventListener("click", closeSettingsModal);
-  DOM.settingsModal.addEventListener("click", (e) => {
-    if (e.target === DOM.settingsModal) closeSettingsModal();
-  });
-
-  // [추가된 기능] 새 프로젝트 등록 팝업 이벤트
-  if (DOM.btnAddProject) {
-    DOM.btnAddProject.addEventListener("click", () => openModal(DOM.addProjectModal));
-  }
-  if (DOM.btnCloseAddProject) DOM.btnCloseAddProject.addEventListener("click", () => closeModal(DOM.addProjectModal));
-  if (DOM.btnCancelAdd) DOM.btnCancelAdd.addEventListener("click", () => closeModal(DOM.addProjectModal));
-  if (DOM.btnSubmitProject) DOM.btnSubmitProject.addEventListener("click", submitNewProject);
-  if (DOM.addProjectModal) {
-    DOM.addProjectModal.addEventListener("click", (e) => {
-      if (e.target === DOM.addProjectModal) closeModal(DOM.addProjectModal);
-    });
-  }
-
-  // ESC 키로 모달 닫기
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      closeDetailModal();
-      closeSettingsModal();
+    if (actionEl) {
+      const action = actionEl.dataset.action;
+      if (action === "edit") {
+        e.preventDefault(); e.stopPropagation();
+        openProjectForm("edit", id);
+      } else if (action === "delete") {
+        e.preventDefault(); e.stopPropagation();
+        requestDeleteProject(id);
+      } else if (action === "detail") {
+        e.preventDefault(); e.stopPropagation();
+        openDetailModal(id);
+      } else if (action === "link") {
+        e.stopPropagation(); // 새 탭 이동은 그대로 허용, 카드 클릭(상세보기)만 막음
+      }
+      return;
     }
+
+    openDetailModal(id);
   });
 
-  // 11) 구글 시트 연동 설정 저장
+  // 상세 모달
+  DOM.btnCloseModal.addEventListener("click", () => closeModal(DOM.detailModal));
+
+  // 시트 연동 설정 모달
+  DOM.btnOpenSettings.addEventListener("click", openSettingsModal);
+  DOM.btnCloseSettings.addEventListener("click", () => closeModal(DOM.settingsModal));
   DOM.btnSaveSettings.addEventListener("click", () => {
     const newUrl = DOM.inputSheetUrl.value.trim();
     state.sheetUrl = newUrl;
     localStorage.setItem("soocheon_sheet_url", newUrl);
-    closeSettingsModal();
-    loadProjectData();
+    closeModal(DOM.settingsModal);
+    loadProjectData({ manual: true });
   });
 
-  // 기본 샘플 데이터로 복원
-  DOM.btnResetToSample.addEventListener("click", () => {
-    state.sheetUrl = "";
-    localStorage.removeItem("soocheon_sheet_url");
-    DOM.inputSheetUrl.value = "";
-    closeSettingsModal();
-    loadProjectData();
-    showToast("기본 샘플 데이터 모드로 복원되었습니다.", "info");
+  // 새 프로젝트 등록 (헤더 버튼 + 모바일 플로팅 버튼)
+  if (DOM.btnAddProject) DOM.btnAddProject.addEventListener("click", () => openProjectForm("create"));
+  if (DOM.btnAddProjectFloat) DOM.btnAddProjectFloat.addEventListener("click", () => openProjectForm("create"));
+  if (DOM.btnCloseProjectForm) DOM.btnCloseProjectForm.addEventListener("click", () => closeModal(DOM.projectFormModal));
+  if (DOM.btnCancelProjectForm) DOM.btnCancelProjectForm.addEventListener("click", () => closeModal(DOM.projectFormModal));
+  if (DOM.btnSubmitProjectForm) DOM.btnSubmitProjectForm.addEventListener("click", submitProjectForm);
+
+  // 탭(카테고리) 관리 모달
+  if (DOM.btnCloseCategoryModal) DOM.btnCloseCategoryModal.addEventListener("click", () => closeModal(DOM.categoryModal));
+  if (DOM.btnAddCategory) DOM.btnAddCategory.addEventListener("click", addCategory);
+  if (DOM.categoryManageList) {
+    DOM.categoryManageList.addEventListener("click", (e) => {
+      const actionEl = e.target.closest("[data-action]");
+      if (!actionEl) return;
+      const row = actionEl.closest("[data-id]");
+      if (!row) return;
+      const id = row.dataset.id;
+      const action = actionEl.dataset.action;
+
+      if (action === "cat-up") moveCategoryOrder(id, "up");
+      else if (action === "cat-down") moveCategoryOrder(id, "down");
+      else if (action === "cat-save") saveCategoryRow(id);
+      else if (action === "cat-delete") requestDeleteCategory(id);
+    });
+  }
+
+  // 삭제/확인 모달
+  DOM.btnConfirmCancel.addEventListener("click", () => closeModal(DOM.confirmModal));
+  DOM.btnConfirmOk.addEventListener("click", () => {
+    const action = state.confirmAction;
+    state.confirmAction = null;
+    closeModal(DOM.confirmModal);
+    if (typeof action === "function") action();
+  });
+
+  // 모달 바깥(오버레이) 클릭 시 닫기 - 모든 모달 공통
+  document.querySelectorAll(".modal-overlay").forEach(overlay => {
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) closeModal(overlay);
+    });
+  });
+
+  // ESC 키로 모든 모달 닫기
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeAllModals();
   });
 }
 
 // ------------------------------------------------------------------------------
-// 13. 알림 토스트 (Toast Message)
+// 20. 알림 토스트 (Toast Message)
 // ------------------------------------------------------------------------------
 let toastTimer = null;
 function showToast(message, type = "success") {
   if (toastTimer) clearTimeout(toastTimer);
 
   DOM.toastText.textContent = message;
-  
+
   if (type === "warning") {
     DOM.toastIcon.className = "fa-solid fa-triangle-exclamation";
   } else if (type === "info") {
     DOM.toastIcon.className = "fa-solid fa-circle-info";
+  } else if (type === "error") {
+    DOM.toastIcon.className = "fa-solid fa-circle-xmark";
   } else {
     DOM.toastIcon.className = "fa-solid fa-circle-check";
   }
 
   DOM.toast.classList.remove("hidden");
-
-  toastTimer = setTimeout(() => {
-    DOM.toast.classList.add("hidden");
-  }, 2800);
+  toastTimer = setTimeout(() => DOM.toast.classList.add("hidden"), 3200);
 }
 
-/**
- * XSS 공격 방지를 위한 안전한 HTML 이스케이프 함수
- */
+// ------------------------------------------------------------------------------
+// 21. 공용 유틸리티
+// ------------------------------------------------------------------------------
 function escapeHtml(str) {
   if (!str) return "";
   return String(str)
@@ -981,4 +1445,21 @@ function escapeHtml(str) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+/** data-id 값을 querySelector 속성 셀렉터에 안전하게 쓰기 위한 최소한의 이스케이프 */
+function cssEscape(value) {
+  return String(value).replace(/["\\]/g, "\\$&");
+}
+
+/** "#00704A" + 0.15 -> "rgba(0,112,74,0.15)" */
+function hexToRgba(hex, alpha) {
+  const clean = (hex || "#00704A").replace("#", "");
+  const bigint = parseInt(clean.length === 3
+    ? clean.split("").map(c => c + c).join("")
+    : clean, 16);
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }

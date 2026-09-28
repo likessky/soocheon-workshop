@@ -8,7 +8,7 @@
 
   <!-- 웹폰트: Pretendard (최고의 한글 가독성 & 깔끔한 모던 타이포그래피) -->
   <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" />
-  
+
   <!-- 아이콘: Font Awesome 6 -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
 
@@ -35,16 +35,16 @@
 
       <!-- 상단 우측 유틸리티 버튼 -->
       <div class="header-actions">
-        <!-- [추가된 기능] 새 프로젝트 등록 버튼 -->
-        <button id="btnAddProject" class="btn-primary" title="새 프로젝트 직접 추가하기" style="margin-right: 8px;">
+        <!-- 새 프로젝트 등록 버튼 -->
+        <button id="btnAddProject" class="btn-primary" title="새 프로젝트 등록">
           <i class="fa-solid fa-plus"></i>
           <span class="btn-text-desktop">새 프로젝트 등록</span>
         </button>
-        
+
         <button id="btnOpenSettings" class="btn-icon" title="구글 스프레드시트 연동 설정" aria-label="설정 열기">
           <i class="fa-solid fa-cloud-arrow-down"></i>
           <span class="btn-text-desktop">시트 연동</span>
-          <span id="syncIndicator" class="sync-dot demo" title="현재 샘플 모드로 작동 중"></span>
+          <span id="syncIndicator" class="sync-dot demo" title="동기화 상태"></span>
         </button>
         <button id="btnToggleTheme" class="btn-icon" title="테마 변경 (크림 라이트 / 리저브 다크)" aria-label="테마 전환">
           <i id="themeIcon" class="fa-solid fa-moon"></i>
@@ -60,44 +60,17 @@
         <i class="fa-solid fa-star"></i> HANDCRAFTED PROJECTS &amp; TOOLS
       </div>
       <h2 class="hero-title">
-        장인의 손길로 뚝딱,<br>
+        장인의 손길로 뚝딱,<span class="hero-break"></span>
         <span class="gradient-text">수천재의 프로젝트 아카이브</span>
       </h2>
       <p class="hero-subtitle">
-        구글 스프레드시트와 안티그래비티가 결합된 따뜻하고 직관적인 대시보드.<br>
-        개발된 웹 서비스, 업무 자동화 툴, 유용한 스크립트들을 실시간으로 탐색하고 실행해 보세요.
+        구글 스프레드시트와 결합된 따뜻하고 직관적인 대시보드.
+        <span class="hero-subtitle-more"> 개발된 웹 서비스, 업무 자동화 툴, 유용한 스크립트들을 실시간으로 탐색하고 실행해 보세요.</span>
       </p>
 
-      <!-- 요약 통계 지표 (Stats Counter) -->
-      <div class="stats-bar">
-        <div class="stat-card" data-filter="전체">
-          <div class="stat-icon"><i class="fa-solid fa-layer-group"></i></div>
-          <div class="stat-info">
-            <span class="stat-value" id="statTotal">0</span>
-            <span class="stat-label">총 프로젝트</span>
-          </div>
-        </div>
-        <div class="stat-card" data-filter="웹사이트">
-          <div class="stat-icon stat-web"><i class="fa-solid fa-globe"></i></div>
-          <div class="stat-info">
-            <span class="stat-value" id="statWeb">0</span>
-            <span class="stat-label">웹사이트</span>
-          </div>
-        </div>
-        <div class="stat-card" data-filter="프로그램">
-          <div class="stat-icon stat-app"><i class="fa-solid fa-laptop-code"></i></div>
-          <div class="stat-info">
-            <span class="stat-value" id="statApp">0</span>
-            <span class="stat-label">프로그램</span>
-          </div>
-        </div>
-        <div class="stat-card" data-filter="스크립트">
-          <div class="stat-icon stat-script"><i class="fa-solid fa-terminal"></i></div>
-          <div class="stat-info">
-            <span class="stat-value" id="statScript">0</span>
-            <span class="stat-label">자동화 스크립트</span>
-          </div>
-        </div>
+      <!-- 요약 통계 지표 (Stats Counter) - JS가 카테고리 데이터로 동적 생성 -->
+      <div class="stats-bar" id="statsBar">
+        <!-- 자바스크립트에 의해 동적으로 생성됩니다 -->
       </div>
     </div>
   </section>
@@ -105,7 +78,7 @@
   <!-- [메인 콘텐츠 영역: 검색, 필터, 개수/보기 모드 조절, 프로젝트 목록] -->
   <main class="main-content">
     <div class="content-container">
-      
+
       <!-- 컨트롤 바: 검색창 + 태그 탭 + 상태 필터 -->
       <div class="control-panel">
         <!-- 검색창 -->
@@ -119,19 +92,13 @@
 
         <!-- 필터 그룹 -->
         <div class="filter-group">
-          <!-- 카테고리 탭 버튼 (스타벅스 시그니처 Pill 버튼) -->
-          <div class="category-tabs" id="categoryTabs">
-            <button class="tab-btn active" data-category="전체">
-              <i class="fa-solid fa-border-all"></i> 전체보기
-            </button>
-            <button class="tab-btn" data-category="웹사이트">
-              <i class="fa-solid fa-globe"></i> 웹사이트
-            </button>
-            <button class="tab-btn" data-category="프로그램">
-              <i class="fa-solid fa-laptop-code"></i> 프로그램
-            </button>
-            <button class="tab-btn" data-category="스크립트">
-              <i class="fa-solid fa-terminal"></i> 스크립트
+          <!-- 카테고리 탭 버튼 (JS가 동적으로 생성) -->
+          <div class="category-tabs-wrapper">
+            <div class="category-tabs" id="categoryTabs">
+              <!-- 자바스크립트에 의해 동적으로 생성됩니다 -->
+            </div>
+            <button id="btnManageCategories" class="btn-manage-tabs" title="탭(카테고리) 관리">
+              <i class="fa-solid fa-gear"></i>
             </button>
           </div>
 
@@ -147,7 +114,7 @@
         </div>
       </div>
 
-      <!-- 서브 툴바: 개수 안내 + 페이지당 개수 선택 + 보기 형태 토글 (카드뷰/리스트뷰) + 새로고침 -->
+      <!-- 서브 툴바: 개수 안내 + 열 수 선택 + 페이지당 개수 선택 + 보기 형태 토글 + 새로고침 -->
       <div class="sub-toolbar">
         <div class="toolbar-left">
           <span id="resultCountInfo" class="count-info-text">
@@ -156,6 +123,22 @@
         </div>
 
         <div class="toolbar-right">
+          <!-- 한 줄에 보여줄 열(가로) 개수 선택 드롭다운 -->
+          <div class="per-page-wrapper">
+            <label for="columnSelect" class="per-page-label">
+              <i class="fa-solid fa-table-columns"></i>
+              <span class="desktop-only-text">가로 열:</span>
+            </label>
+            <select id="columnSelect" class="per-page-select">
+              <option value="auto">자동</option>
+              <option value="1">1열</option>
+              <option value="2">2열</option>
+              <option value="3" selected>3열</option>
+              <option value="4">4열</option>
+              <option value="5">5열</option>
+            </select>
+          </div>
+
           <!-- 한 번에 볼 개수 선택 드롭다운 -->
           <div class="per-page-wrapper">
             <label for="itemsPerPageSelect" class="per-page-label">
@@ -212,6 +195,11 @@
     </div>
   </main>
 
+  <!-- [모바일 전용 플로팅 등록 버튼] -->
+  <button id="btnAddProjectFloat" class="btn-fab" title="새 프로젝트 등록" aria-label="새 프로젝트 등록">
+    <i class="fa-solid fa-plus"></i>
+  </button>
+
   <!-- [프로젝트 상세 보기 모달 팝업] -->
   <div id="detailModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <div class="modal-card">
@@ -246,7 +234,7 @@
 
         <!-- 액션 버튼들 -->
         <div class="modal-actions" id="modalActions">
-          <!-- 웹 바로가기, 드라이브 다운로드 버튼이 동적 배치 -->
+          <!-- 웹 바로가기, 드라이브 다운로드, 수정, 삭제 버튼이 동적 배치 -->
         </div>
       </div>
     </div>
@@ -275,7 +263,7 @@
             Apps Script 웹앱 배포 URL
             <span class="label-badge">권장</span>
           </label>
-          <input type="url" id="inputSheetUrl" class="form-input" 
+          <input type="url" id="inputSheetUrl" class="form-input"
                  placeholder="https://script.google.com/macros/s/.../exec">
           <p class="input-help">
             <i class="fa-solid fa-circle-info"></i> 구글 시트에서 [확장 프로그램 > Apps Script] 배포 후 얻은 웹앱 URL을 입력하세요.
@@ -292,9 +280,6 @@
         </div>
 
         <div class="settings-actions">
-          <button id="btnResetToSample" class="btn-secondary">
-            <i class="fa-solid fa-arrow-rotate-left"></i> 기본 데모 데이터로 복원
-          </button>
           <button id="btnSaveSettings" class="btn-primary">
             <i class="fa-solid fa-floppy-disk"></i> 저장 및 실시간 동기화
           </button>
@@ -303,61 +288,133 @@
     </div>
   </div>
 
-  <!-- [추가된 기능: 새 프로젝트 등록 모달 팝업] -->
-  <div id="addProjectModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="addProjectTitle">
+  <!-- [새 프로젝트 등록 / 수정 겸용 모달 팝업] -->
+  <div id="projectFormModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="projectFormTitle">
     <div class="modal-card settings-modal-card">
-      <button id="btnCloseAddProject" class="modal-close-btn" aria-label="팝업 닫기">
+      <button id="btnCloseProjectForm" class="modal-close-btn" aria-label="팝업 닫기">
         <i class="fa-solid fa-xmark"></i>
       </button>
 
       <div class="settings-header">
         <div class="settings-icon">
-          <i class="fa-solid fa-pen-to-square"></i>
+          <i id="projectFormIcon" class="fa-solid fa-pen-to-square"></i>
         </div>
         <div>
-          <h3 id="addProjectTitle" class="settings-title">새 프로젝트 등록</h3>
-          <p class="settings-desc">여기서 입력한 내용은 구글 시트에 자동으로 쏙! 추가됩니다.</p>
+          <h3 id="projectFormTitle" class="settings-title">새 프로젝트 등록</h3>
+          <p class="settings-desc" id="projectFormDesc">여기서 입력한 내용은 구글 시트에 자동으로 쏙! 추가됩니다.</p>
         </div>
       </div>
 
-      <div class="settings-body" style="max-height: 60vh; overflow-y: auto; padding-right: 10px;">
+      <div class="settings-body form-scroll-area">
         <!-- 입력 폼 -->
         <div class="form-group">
-          <label for="addUrl" class="form-label">URL (주소) <span class="label-badge">필수</span></label>
-          <input type="url" id="addUrl" class="form-input" placeholder="https://...">
-        </div>
-        
-        <div class="form-group">
-          <label for="addTitle" class="form-label">프로젝트 제목 <span class="label-badge">필수</span></label>
-          <input type="text" id="addTitle" class="form-input" placeholder="멋진 이름을 지어주세요">
-        </div>
-        
-        <div class="form-group">
-          <label for="addDesc" class="form-label">프로젝트 설명</label>
-          <textarea id="addDesc" class="form-input" placeholder="어떤 프로젝트인지 간단히 설명해주세요" rows="2" style="resize: vertical;"></textarea>
-        </div>
-        
-        <div class="form-group">
-          <label for="addCategory" class="form-label">카테고리</label>
-          <select id="addCategory" class="form-input">
-            <option value="웹사이트">웹사이트</option>
-            <option value="프로그램">프로그램</option>
-            <option value="스크립트">스크립트</option>
-          </select>
+          <label for="fUrl" class="form-label">URL (주소) <span class="label-badge">필수</span></label>
+          <input type="url" id="fUrl" class="form-input" placeholder="https://...">
         </div>
 
         <div class="form-group">
-          <label for="addThumbnail" class="form-label">썸네일 이미지 주소 (선택)</label>
-          <input type="url" id="addThumbnail" class="form-input" placeholder="비워두면 예쁜 기본 이미지가 들어갑니다">
+          <label for="fTitle" class="form-label">프로젝트 제목 <span class="label-badge">필수</span></label>
+          <input type="text" id="fTitle" class="form-input" placeholder="멋진 이름을 지어주세요">
+        </div>
+
+        <div class="form-group">
+          <label for="fDesc" class="form-label">프로젝트 설명</label>
+          <textarea id="fDesc" class="form-input" placeholder="어떤 프로젝트인지 간단히 설명해주세요" rows="2" style="resize: vertical;"></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="fCategory" class="form-label">카테고리</label>
+            <select id="fCategory" class="form-input">
+              <!-- 자바스크립트가 현재 탭 목록으로 채웁니다 -->
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="fStatus" class="form-label">운영 상태</label>
+            <select id="fStatus" class="form-input">
+              <option value="운영 중">🟢 운영 중</option>
+              <option value="업데이트 중">🟡 업데이트 중</option>
+              <option value="다운로드 전용">🔴 다운로드 전용</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="fThumbnail" class="form-label">썸네일 이미지 주소 (선택)</label>
+          <input type="url" id="fThumbnail" class="form-input" placeholder="비워두면 예쁜 기본 이미지가 들어갑니다">
+        </div>
+
+        <div class="form-group">
+          <label for="fDriveUrl" class="form-label">다운로드 링크 (선택)</label>
+          <input type="url" id="fDriveUrl" class="form-input" placeholder="구글 드라이브 등 다운로드 주소">
+        </div>
+
+        <div class="form-group">
+          <label for="fTechStack" class="form-label">기술 스택 (콤마로 구분, 선택)</label>
+          <input type="text" id="fTechStack" class="form-input" placeholder="예: React, Node.js, Google Sheets">
         </div>
       </div>
 
-      <div class="settings-actions" style="margin-top: 20px;">
-        <button id="btnCancelAdd" class="btn-secondary">
+      <div class="settings-actions">
+        <button id="btnCancelProjectForm" class="btn-secondary">
           취소
         </button>
-        <button id="btnSubmitProject" class="btn-primary">
-          <i class="fa-solid fa-paper-plane"></i> 구글 시트로 전송!
+        <button id="btnSubmitProjectForm" class="btn-primary">
+          <i class="fa-solid fa-paper-plane"></i> <span id="projectFormSubmitText">구글 시트로 전송!</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- [탭(카테고리) 관리 모달] -->
+  <div id="categoryModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="categoryModalTitle">
+    <div class="modal-card settings-modal-card">
+      <button id="btnCloseCategoryModal" class="modal-close-btn" aria-label="팝업 닫기">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <div class="settings-header">
+        <div class="settings-icon">
+          <i class="fa-solid fa-tags"></i>
+        </div>
+        <div>
+          <h3 id="categoryModalTitle" class="settings-title">탭(카테고리) 관리</h3>
+          <p class="settings-desc">프로젝트를 분류하는 탭을 추가, 수정, 삭제, 순서 변경할 수 있습니다.</p>
+        </div>
+      </div>
+
+      <div class="settings-body form-scroll-area">
+        <div id="categoryManageList" class="category-manage-list">
+          <!-- 자바스크립트에 의해 동적으로 생성됩니다 -->
+        </div>
+
+        <div class="category-add-row">
+          <input type="text" id="newCategoryName" class="form-input" placeholder="새 탭 이름 (예: 자동화)">
+          <input type="color" id="newCategoryColor" class="color-input" value="#00704A" title="탭 색상">
+          <button id="btnAddCategory" class="btn-secondary">
+            <i class="fa-solid fa-plus"></i> 추가
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- [삭제 확인 모달] -->
+  <div id="confirmModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="confirmModalTitle">
+    <div class="modal-card confirm-modal-card">
+      <div class="confirm-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+      <h3 id="confirmModalTitle" class="confirm-title">정말 삭제하시겠습니까?</h3>
+      <p id="confirmModalDesc" class="confirm-desc">이 작업은 되돌릴 수 없습니다.</p>
+
+      <div id="confirmModalExtra" class="confirm-extra hidden">
+        <!-- 카테고리 삭제 시 대체 탭 선택 영역이 여기 동적으로 들어갑니다 -->
+      </div>
+
+      <div class="settings-actions">
+        <button id="btnConfirmCancel" class="btn-secondary">취소</button>
+        <button id="btnConfirmOk" class="btn-danger">
+          <i class="fa-solid fa-trash-can"></i> 삭제
         </button>
       </div>
     </div>
