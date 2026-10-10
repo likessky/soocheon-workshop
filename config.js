@@ -23,5 +23,19 @@ const CONFIG = {
     { id: "default-web",    name: "웹사이트", icon: "fa-solid fa-globe",       color: "#00704A", order: 1 },
     { id: "default-app",    name: "프로그램", icon: "fa-solid fa-laptop-code", color: "#8C5B23", order: 2 },
     { id: "default-script", name: "스크립트", icon: "fa-solid fa-terminal",    color: "#4A443A", order: 3 }
+  ],
+
+  // [4] 탭 색상을 고를 때 먼저 보여줄 자주 쓰는 색상 (마음에 안 들면 '직접 선택' 가능)
+  COLOR_PRESETS: [
+    { name: "그린",   hex: "#00704A" },
+    { name: "브라운", hex: "#8C5B23" },
+    { name: "차콜",   hex: "#4A443A" },
+    { name: "레드",   hex: "#D64545" },
+    { name: "오렌지", hex: "#E8853D" },
+    { name: "옐로",   hex: "#D4A72C" },
+    { name: "블루",   hex: "#3B7DD8" },
+    { name: "네이비", hex: "#2C3E6B" },
+    { name: "퍼플",   hex: "#7B5CC4" },
+    { name: "핑크",   hex: "#D85C9A" }
   ]
 };

@@ -39,7 +39,10 @@ let state = {
 
   formMode: "create",          // "create" | "edit"
   editingProjectId: null,
-  confirmAction: null          // 확인 모달에서 [삭제] 눌렀을 때 실행할 함수
+  confirmAction: null,         // 확인 모달에서 [삭제] 눌렀을 때 실행할 함수
+
+  newCategoryColor: "#00704A", // 새 탭 추가 시 선택된 색상
+  siteMetaCache: {}            // URL → 자동으로 가져온 사이트 정보 { title, description, image }
 };
 
 const CACHE_KEY = "soocheon_cache_v3";
@@ -116,13 +119,17 @@ const DOM = {
   fThumbnail: document.getElementById("fThumbnail"),
   fDriveUrl: document.getElementById("fDriveUrl"),
   fTechStack: document.getElementById("fTechStack"),
+  fUrlStatus: document.getElementById("fUrlStatus"),
+  fUrlHelp: document.getElementById("fUrlHelp"),
+  fMoreOptions: document.getElementById("fMoreOptions"),
 
   // 탭(카테고리) 관리 모달
   categoryModal: document.getElementById("categoryModal"),
   btnCloseCategoryModal: document.getElementById("btnCloseCategoryModal"),
   categoryManageList: document.getElementById("categoryManageList"),
   newCategoryName: document.getElementById("newCategoryName"),
-  newCategoryColor: document.getElementById("newCategoryColor"),
+  newCategorySwatches: document.getElementById("newCategorySwatches"),
+  newCategoryColorPreview: document.getElementById("newCategoryColorPreview"),
   btnAddCategory: document.getElementById("btnAddCategory"),
 
   // 삭제 확인 모달
@@ -378,6 +385,18 @@ function renderCategoryTabs() {
   });
 
   DOM.categoryTabs.innerHTML = html;
+}
+
+/**
+ * 탭/통계카드 선택 표시만 바꿉니다. (전체를 다시 그리지 않아 클릭 반응이 즉각적입니다)
+ */
+function updateCategorySelectionUI() {
+  DOM.categoryTabs.querySelectorAll(".tab-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.category === state.selectedCategory);
+  });
+  DOM.statsBar.querySelectorAll(".stat-card").forEach(card => {
+    card.classList.toggle("is-selected", card.dataset.filter === state.selectedCategory);
+  });
 }
 
 function getCategoryByName(name) {
@@ -804,6 +823,11 @@ function applyTheme(themeName) {
   state.theme = themeName;
   localStorage.setItem("soocheon_theme", themeName);
 
+  // 전환 순간 모든 요소의 색상 애니메이션을 끄면 테마가 즉시 바뀝니다.
+  const root = document.documentElement;
+  root.classList.add("theme-switching");
+  requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove("theme-switching")));
+
   if (themeName === "dark") {
     document.body.className = "dark-theme";
     DOM.themeIcon.className = "fa-solid fa-sun";
@@ -853,6 +877,10 @@ function populateCategorySelect(selectEl, selectedName) {
 }
 
 function openProjectForm(mode, projectId) {
+  if (mode === "edit" && isPendingId(projectId)) {
+    showToast("아직 시트에 저장 중입니다. 잠시 후 다시 시도해주세요.", "info");
+    return;
+  }
   state.formMode = mode;
   state.editingProjectId = projectId || null;
 
@@ -891,15 +919,112 @@ function openProjectForm(mode, projectId) {
     DOM.fTechStack.value = "";
   }
 
+  // 추가 옵션은 값이 들어있을 때만 펼쳐서 보여줍니다.
+  if (DOM.fMoreOptions) {
+    DOM.fMoreOptions.open = !!(DOM.fThumbnail.value || DOM.fDriveUrl.value || DOM.fTechStack.value);
+  }
+  lastAutofillUrl = mode === "edit" ? normalizeUrlInput(DOM.fUrl.value) : "";
+  setUrlFetchStatus("idle");
+
   openModal(DOM.projectFormModal);
+  (mode === "edit" ? DOM.fTitle : DOM.fUrl).focus();
+}
+
+// ------------------------------------------------------------------------------
+// 16-1. 사이트 정보 자동 가져오기 (URL → 제목/설명/썸네일)
+// ------------------------------------------------------------------------------
+let metaFetchTimer = null;
+let lastAutofillUrl = "";   // 같은 주소로 중복 요청하지 않기 위함 (paste 직후 change 등)
+
+function scheduleSiteMetaFetch(delay) {
+  if (metaFetchTimer) clearTimeout(metaFetchTimer);
+  metaFetchTimer = setTimeout(autofillFromUrl, delay);
+}
+
+function normalizeUrlInput(raw) {
+  const value = (raw || "").trim();
+  if (!value) return "";
+  if (/^https?:\/\//i.test(value)) return value;
+  // "example.com" 처럼 프로토콜 없이 입력해도 받아줍니다.
+  if (/^[\w-]+(\.[\w-]+)+/.test(value)) return "https://" + value;
+  return "";
+}
+
+async function autofillFromUrl() {
+  const url = normalizeUrlInput(DOM.fUrl.value);
+  if (!url) return;
+  if (DOM.fUrl.value.trim() !== url) DOM.fUrl.value = url;
+  if (url === lastAutofillUrl) return;
+  lastAutofillUrl = url;
+
+  // 수정 모드에서 이미 채워진 프로젝트라면 굳이 다시 가져오지 않습니다.
+  if (DOM.fTitle.value.trim() && DOM.fDesc.value.trim() && DOM.fThumbnail.value.trim()) return;
+
+  setUrlFetchStatus("loading");
+  const meta = await fetchSiteMeta(url);
+
+  // 기다리는 동안 사용자가 URL을 바꿨거나 폼을 닫았다면 무시합니다.
+  if (normalizeUrlInput(DOM.fUrl.value) !== url || DOM.projectFormModal.classList.contains("hidden")) return;
+
+  if (!meta) {
+    setUrlFetchStatus("fail");
+    return;
+  }
+
+  // 사용자가 이미 입력한 칸은 덮어쓰지 않고, 빈 칸만 채웁니다.
+  if (!DOM.fTitle.value.trim() && meta.title) DOM.fTitle.value = meta.title;
+  if (!DOM.fDesc.value.trim() && meta.description) DOM.fDesc.value = meta.description;
+  setUrlFetchStatus("done");
+}
+
+/** Apps Script(meta.fetch)를 통해 사이트 정보를 가져옵니다. 실패하면 null. */
+async function fetchSiteMeta(url) {
+  if (state.siteMetaCache[url]) return state.siteMetaCache[url];
+  if (!state.sheetUrl) return null;
+
+  try {
+    const res = await postToSheet({ action: "meta.fetch", url });
+    if (!res.success || !res.data) return null;
+    const meta = {
+      title: (res.data.title || "").trim(),
+      description: (res.data.description || "").trim(),
+      image: /^https?:\/\//.test(res.data.image || "") ? res.data.image : ""
+    };
+    state.siteMetaCache[url] = meta;
+    return meta;
+  } catch (err) {
+    console.warn("사이트 정보 가져오기 실패:", err);
+    return null;
+  }
+}
+
+function setUrlFetchStatus(status) {
+  if (!DOM.fUrlStatus || !DOM.fUrlHelp) return;
+  const help = {
+    idle: '<i class="fa-solid fa-wand-magic-sparkles"></i> 주소를 넣으면 제목·설명·썸네일을 사이트에서 자동으로 가져옵니다.',
+    loading: '<i class="fa-solid fa-wand-magic-sparkles"></i> 사이트 정보를 가져오는 중...',
+    done: '<i class="fa-solid fa-circle-check"></i> 사이트 정보를 채웠어요. 필요하면 자유롭게 고치세요.',
+    fail: '<i class="fa-solid fa-circle-info"></i> 정보를 자동으로 가져오지 못했어요. 제목만 직접 입력해 주세요.'
+  };
+  DOM.fUrlStatus.classList.toggle("hidden", status !== "loading");
+  DOM.fUrlHelp.innerHTML = help[status] || help.idle;
+}
+
+/** 썸네일을 비워뒀을 때: 사이트 대표 이미지 → 사이트 화면 캡처 순으로 자동 지정 */
+function resolveAutoThumbnail(url) {
+  const meta = url ? state.siteMetaCache[url] : null;
+  if (meta && meta.image) return meta.image;
+  if (url) return "https://s.wordpress.com/mshots/v1/" + encodeURIComponent(url) + "?w=800";
+  return "";
 }
 
 async function submitProjectForm() {
-  const url = DOM.fUrl.value.trim();
+  const url = normalizeUrlInput(DOM.fUrl.value);
   const title = DOM.fTitle.value.trim();
 
-  if (!url || !title) {
-    showToast("URL과 프로젝트 제목은 필수입니다!", "error");
+  if (!title) {
+    showToast("프로젝트 제목을 입력해주세요!", "error");
+    DOM.fTitle.focus();
     return;
   }
 
@@ -916,48 +1041,46 @@ async function submitProjectForm() {
     description: DOM.fDesc.value.trim(),
     tag: DOM.fCategory.value,
     status: DOM.fStatus.value,
-    thumbnail: DOM.fThumbnail.value.trim(),
+    thumbnail: DOM.fThumbnail.value.trim() || resolveAutoThumbnail(url),
     driveUrl: DOM.fDriveUrl.value.trim(),
     techStack: DOM.fTechStack.value.trim()
   };
 
-  const btn = DOM.btnSubmitProjectForm;
-  const originalHtml = btn.innerHTML;
-  btn.disabled = true;
+  // 등록/수정 모두 화면에 먼저 반영하고 모달을 바로 닫습니다 (서버 저장은 뒤에서 진행).
+  closeModal(DOM.projectFormModal);
 
   if (state.formMode === "edit") {
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 저장 중...';
-    const id = state.editingProjectId;
-    closeModal(DOM.projectFormModal);
-    await submitProjectEdit(id, payload);
-    btn.disabled = false;
-    btn.innerHTML = originalHtml;
-    return;
-  }
-
-  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 등록 중...';
-  try {
+    await submitProjectEdit(state.editingProjectId, payload);
+  } else {
     await submitProjectCreate(payload);
-    showToast("새 프로젝트가 등록되었습니다! 🎉", "success");
-    closeModal(DOM.projectFormModal);
-  } catch (error) {
-    console.error(error);
-    showToast("등록 실패: " + error.message, "error");
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = originalHtml;
   }
 }
 
-async function submitProjectCreate(payload) {
-  const res = await postToSheet({ action: "project.create", project: payload });
-  if (!res.success) throw new Error(res.message || "등록에 실패했습니다.");
+function isPendingId(id) {
+  return String(id || "").indexOf("tmp_") === 0;
+}
 
-  const newId = res.data && res.data.id;
-  const newProject = normalizeProjectsData([Object.assign({}, payload, { id: newId })])[0];
+/** 등록도 낙관적 업데이트: 임시 ID로 카드를 먼저 띄우고, 저장되면 진짜 ID로 바꿉니다. */
+async function submitProjectCreate(payload) {
+  const tempId = "tmp_" + Date.now();
+  const newProject = normalizeProjectsData([Object.assign({}, payload, { id: tempId })])[0];
   state.allProjects.push(newProject);
-  writeCache({ projects: state.allProjects, categories: state.categories });
   renderAll();
+
+  try {
+    const res = await postToSheet({ action: "project.create", project: payload });
+    if (!res.success) throw new Error(res.message || "등록에 실패했습니다.");
+
+    newProject.id = String((res.data && res.data.id) || ("local_" + Date.now()));
+    writeCache({ projects: state.allProjects, categories: state.categories });
+    applyFilterAndRender();
+    showToast("새 프로젝트가 등록되었습니다! 🎉", "success");
+  } catch (error) {
+    console.error(error);
+    state.allProjects = state.allProjects.filter(p => p !== newProject);
+    renderAll();
+    showToast("등록 실패: " + error.message, "error");
+  }
 }
 
 /** 수정은 낙관적(optimistic) 업데이트: 화면을 먼저 바꾸고, 실패하면 되돌립니다. */
@@ -988,6 +1111,10 @@ async function submitProjectEdit(id, payload) {
 }
 
 function requestDeleteProject(id) {
+  if (isPendingId(id)) {
+    showToast("아직 시트에 저장 중입니다. 잠시 후 다시 시도해주세요.", "info");
+    return;
+  }
   const project = state.allProjects.find(p => p.id === id);
   if (!project) return;
 
@@ -1030,16 +1157,82 @@ async function performDeleteProject(id) {
 function openCategoryModal() {
   renderCategoryManageList();
   DOM.newCategoryName.value = "";
-  DOM.newCategoryColor.value = "#00704A";
+  setNewCategoryColor("#00704A");
   openModal(DOM.categoryModal);
+}
+
+/** 카테고리/프로젝트 상태를 통째로 복사해 둡니다 (서버 저장 실패 시 되돌리기용). */
+function snapshotCategoryState() {
+  return {
+    categories: state.categories.map(c => Object.assign({}, c)),
+    tags: state.allProjects.map(p => [p, p.tag]),
+    selectedCategory: state.selectedCategory
+  };
+}
+
+function restoreCategoryState(snap) {
+  state.categories = snap.categories;
+  snap.tags.forEach(([project, tag]) => { project.tag = tag; });
+  state.selectedCategory = snap.selectedCategory;
+  writeCache({ projects: state.allProjects, categories: state.categories });
+  renderAll();
+  if (!DOM.categoryModal.classList.contains("hidden")) renderCategoryManageList();
+}
+
+function commitCategoryChange() {
+  writeCache({ projects: state.allProjects, categories: state.categories });
+  renderAll();
+  renderCategoryManageList();
+}
+
+// ---- 색상 프리셋 -------------------------------------------------------------
+function getColorPresets() {
+  return (typeof CONFIG !== "undefined" && Array.isArray(CONFIG.COLOR_PRESETS))
+    ? CONFIG.COLOR_PRESETS
+    : [{ name: "그린", hex: "#00704A" }];
+}
+
+/** 자주 쓰는 색 동그라미들 + 마지막에 '직접 선택'(네이티브 컬러피커) 버튼 */
+function renderColorSwatches(selectedHex) {
+  const selected = (selectedHex || "").toUpperCase();
+  const presets = getColorPresets();
+  const isCustom = !presets.some(p => p.hex.toUpperCase() === selected);
+
+  const presetHtml = presets.map(p => `
+    <button type="button" class="color-swatch ${p.hex.toUpperCase() === selected ? "is-selected" : ""}"
+            style="background:${p.hex};" data-color="${p.hex}" title="${escapeHtml(p.name)}" aria-label="${escapeHtml(p.name)}">
+      <i class="fa-solid fa-check"></i>
+    </button>
+  `).join("");
+
+  return presetHtml + `
+    <label class="color-swatch custom ${isCustom ? "is-selected" : ""}" title="직접 선택"
+           style="${isCustom ? `background:${escapeHtml(selectedHex)};` : ""}">
+      <input type="color" data-role="custom-color" value="${escapeHtml(selectedHex || "#00704A")}" aria-label="색상 직접 선택">
+      <i class="fa-solid ${isCustom ? "fa-check" : "fa-palette"}"></i>
+    </label>
+  `;
+}
+
+function setNewCategoryColor(hex) {
+  state.newCategoryColor = hex;
+  if (DOM.newCategoryColorPreview) DOM.newCategoryColorPreview.style.background = hex;
+  if (DOM.newCategorySwatches) DOM.newCategorySwatches.innerHTML = renderColorSwatches(hex);
+}
+
+/** 기존 탭 행에서 색을 바꿨을 때: 미리보기 점과 팔레트 표시만 갱신 (저장은 ✓ 버튼) */
+function setRowColor(row, hex) {
+  row.dataset.color = hex;
+  row.querySelector(".color-preview-dot").style.background = hex;
+  row.querySelector(".color-swatches").innerHTML = renderColorSwatches(hex);
 }
 
 function renderCategoryManageList() {
   const sorted = [...state.categories].sort((a, b) => a.order - b.order);
 
   DOM.categoryManageList.innerHTML = sorted.map((cat, idx) => `
-    <div class="category-manage-row" data-id="${escapeHtml(cat.id)}">
-      <input type="color" class="color-input" value="${escapeHtml(cat.color)}" data-field="color" title="탭 색상">
+    <div class="category-manage-row" data-id="${escapeHtml(cat.id)}" data-color="${escapeHtml(cat.color)}">
+      <button type="button" class="color-preview-dot" data-action="cat-color" style="background:${escapeHtml(cat.color)};" title="색상 바꾸기"></button>
       <input type="text" class="form-input cat-name-input" value="${escapeHtml(cat.name)}" data-field="name">
       <div class="cat-manage-actions">
         <button class="btn-icon-mini" data-action="cat-up" ${idx === 0 ? "disabled" : ""} title="위로"><i class="fa-solid fa-arrow-up"></i></button>
@@ -1047,50 +1240,61 @@ function renderCategoryManageList() {
         <button class="btn-icon-mini" data-action="cat-save" title="이 탭 저장"><i class="fa-solid fa-check"></i></button>
         <button class="btn-icon-mini danger" data-action="cat-delete" title="탭 삭제"><i class="fa-solid fa-trash-can"></i></button>
       </div>
+      <div class="color-swatches row-swatches hidden">${renderColorSwatches(cat.color)}</div>
     </div>
   `).join("");
 }
 
 async function saveCategoryRow(id) {
+  if (isPendingId(id)) {
+    showToast("아직 시트에 저장 중입니다. 잠시 후 다시 시도해주세요.", "info");
+    return;
+  }
   const row = DOM.categoryManageList.querySelector(`[data-id="${cssEscape(id)}"]`);
   if (!row) return;
 
   const name = row.querySelector('[data-field="name"]').value.trim();
-  const color = row.querySelector('[data-field="color"]').value;
+  const color = row.dataset.color;
 
   if (!name) {
     showToast("탭 이름을 입력해주세요.", "error");
     return;
   }
 
+  const cat = state.categories.find(c => c.id === id);
+  if (!cat) return;
+  if (name !== cat.name && state.categories.some(c => c.name === name)) {
+    showToast(`'${name}' 탭은 이미 있습니다.`, "error");
+    return;
+  }
+
+  // 화면 먼저 반영 → 서버 저장 실패 시 되돌림
+  const snap = snapshotCategoryState();
+  const oldName = cat.name;
+  cat.name = name;
+  cat.color = color;
+  if (oldName !== name) {
+    state.allProjects.forEach(p => { if (p.tag === oldName) p.tag = name; });
+    if (state.selectedCategory === oldName) state.selectedCategory = name;
+  }
+  commitCategoryChange();
+
   try {
     const res = await postToSheet({ action: "category.update", category: { id, name, color } });
     if (!res.success) throw new Error(res.message || "탭 수정에 실패했습니다.");
-
-    const cat = state.categories.find(c => c.id === id);
-    const oldName = cat ? cat.name : null;
-
-    if (cat) {
-      cat.name = name;
-      cat.color = color;
-    }
-
-    if (oldName && oldName !== name) {
-      state.allProjects.forEach(p => { if (p.tag === oldName) p.tag = name; });
-      if (state.selectedCategory === oldName) state.selectedCategory = name;
-    }
-
-    writeCache({ projects: state.allProjects, categories: state.categories });
-    renderAll();
-    renderCategoryManageList();
     showToast("탭 정보가 저장되었습니다.", "success");
   } catch (error) {
     console.error(error);
+    restoreCategoryState(snap);
     showToast("탭 저장 실패: " + error.message, "error");
   }
 }
 
 function requestDeleteCategory(id) {
+  if (isPendingId(id)) {
+    showToast("아직 시트에 저장 중입니다. 잠시 후 다시 시도해주세요.", "info");
+    return;
+  }
   if (state.categories.length <= 1) {
     showToast("탭은 최소 1개는 있어야 합니다.", "error");
     return;
@@ -1121,24 +1325,24 @@ function requestDeleteCategory(id) {
 }
 
 async function performDeleteCategory(id, fallbackName) {
+  const cat = state.categories.find(c => c.id === id);
+  if (!cat) return;
+
+  const snap = snapshotCategoryState();
+  state.categories = state.categories.filter(c => c.id !== id);
+  if (fallbackName) {
+    state.allProjects.forEach(p => { if (p.tag === cat.name) p.tag = fallbackName; });
+  }
+  if (state.selectedCategory === cat.name) state.selectedCategory = "전체";
+  commitCategoryChange();
+
   try {
     const res = await postToSheet({ action: "category.delete", id, fallbackName });
     if (!res.success) throw new Error(res.message || "탭 삭제에 실패했습니다.");
-
-    const cat = state.categories.find(c => c.id === id);
-    state.categories = state.categories.filter(c => c.id !== id);
-
-    if (cat && fallbackName) {
-      state.allProjects.forEach(p => { if (p.tag === cat.name) p.tag = fallbackName; });
-    }
-    if (state.selectedCategory === (cat && cat.name)) state.selectedCategory = "전체";
-
-    writeCache({ projects: state.allProjects, categories: state.categories });
-    renderAll();
-    renderCategoryManageList();
     showToast("탭이 삭제되었습니다.", "success");
   } catch (error) {
     console.error(error);
+    restoreCategoryState(snap);
     showToast("탭 삭제 실패: " + error.message, "error");
   }
 }
@@ -1148,55 +1352,63 @@ async function moveCategoryOrder(id, direction) {
   const idx = sorted.findIndex(c => c.id === id);
   const swapIdx = direction === "up" ? idx - 1 : idx + 1;
   if (idx < 0 || swapIdx < 0 || swapIdx >= sorted.length) return;
+  if (sorted.some(c => isPendingId(c.id))) {
+    showToast("아직 시트에 저장 중인 탭이 있습니다. 잠시 후 다시 시도해주세요.", "info");
+    return;
+  }
 
-  const tmp = sorted[idx].order;
-  sorted[idx].order = sorted[swapIdx].order;
-  sorted[swapIdx].order = tmp;
-  sorted.sort((a, b) => a.order - b.order);
-
-  renderCategoryManageList();
+  const snap = snapshotCategoryState();
+  [sorted[idx], sorted[swapIdx]] = [sorted[swapIdx], sorted[idx]];
+  sorted.forEach((c, i) => { c.order = i + 1; });
+  state.categories = sorted;
+  commitCategoryChange();
 
   try {
     const res = await postToSheet({ action: "category.reorder", order: sorted.map(c => c.id) });
     if (!res.success) throw new Error(res.message || "순서 변경에 실패했습니다.");
-    state.categories = sorted;
-    writeCache({ projects: state.allProjects, categories: state.categories });
-    renderAll();
-    renderCategoryManageList();
   } catch (error) {
     console.error(error);
+    restoreCategoryState(snap);
     showToast("탭 순서 변경 실패: " + error.message, "error");
   }
 }
 
 async function addCategory() {
   const name = DOM.newCategoryName.value.trim();
-  const color = DOM.newCategoryColor.value || "#00704A";
+  const color = state.newCategoryColor || "#00704A";
 
   if (!name) {
     showToast("새 탭 이름을 입력해주세요.", "error");
     return;
   }
+  if (state.categories.some(c => c.name === name)) {
+    showToast(`'${name}' 탭은 이미 있습니다.`, "error");
+    return;
+  }
+
+  // 임시 ID로 먼저 추가해 바로 보여주고, 저장되면 진짜 ID로 바꿉니다.
+  const newCat = {
+    id: "tmp_" + Date.now(),
+    name,
+    color,
+    icon: "fa-solid fa-folder",
+    order: state.categories.reduce((max, c) => Math.max(max, c.order), 0) + 1
+  };
+  state.categories.push(newCat);
+  DOM.newCategoryName.value = "";
+  commitCategoryChange();
 
   try {
-    const res = await postToSheet({ action: "category.create", category: { name, color, icon: "fa-solid fa-folder" } });
+    const res = await postToSheet({ action: "category.create", category: { name, color, icon: newCat.icon } });
     if (!res.success) throw new Error(res.message || "탭 추가에 실패했습니다.");
 
-    state.categories.push({
-      id: res.data && res.data.id,
-      name,
-      color,
-      icon: "fa-solid fa-folder",
-      order: state.categories.length + 1
-    });
-
-    writeCache({ projects: state.allProjects, categories: state.categories });
-    DOM.newCategoryName.value = "";
-    renderAll();
-    renderCategoryManageList();
+    newCat.id = String((res.data && res.data.id) || ("cat_local_" + Date.now()));
+    commitCategoryChange();
     showToast(`'${name}' 탭이 추가되었습니다. 🎉`, "success");
   } catch (error) {
     console.error(error);
+    state.categories = state.categories.filter(c => c !== newCat);
+    commitCategoryChange();
     showToast("탭 추가 실패: " + error.message, "error");
   }
 }
@@ -1248,10 +1460,10 @@ function setupEventListeners() {
   DOM.categoryTabs.addEventListener("click", (e) => {
     const btn = e.target.closest(".tab-btn");
     if (!btn) return;
+    if (state.selectedCategory === btn.dataset.category) return;
     state.selectedCategory = btn.dataset.category;
     state.currentPage = 1;
-    renderCategoryTabs();
-    renderStatsBar();
+    updateCategorySelectionUI();
     applyFilterAndRender();
   });
 
@@ -1276,8 +1488,7 @@ function setupEventListeners() {
     state.selectedStatus = "전체";
     DOM.statusFilter.value = "전체";
     state.currentPage = 1;
-    renderCategoryTabs();
-    renderStatsBar();
+    updateCategorySelectionUI();
     applyFilterAndRender();
   });
 
@@ -1290,8 +1501,7 @@ function setupEventListeners() {
 
     state.selectedCategory = targetCategory;
     state.currentPage = 1;
-    renderCategoryTabs();
-    renderStatsBar();
+    updateCategorySelectionUI();
     applyFilterAndRender();
     DOM.projectGrid.scrollIntoView({ behavior: "smooth" });
   });
@@ -1370,11 +1580,41 @@ function setupEventListeners() {
   if (DOM.btnCancelProjectForm) DOM.btnCancelProjectForm.addEventListener("click", () => closeModal(DOM.projectFormModal));
   if (DOM.btnSubmitProjectForm) DOM.btnSubmitProjectForm.addEventListener("click", submitProjectForm);
 
+  // URL을 붙여넣거나 입력을 마치면 사이트 정보를 자동으로 가져옵니다.
+  DOM.fUrl.addEventListener("paste", () => scheduleSiteMetaFetch(50));
+  DOM.fUrl.addEventListener("change", () => scheduleSiteMetaFetch(0));
+
   // 탭(카테고리) 관리 모달
   if (DOM.btnCloseCategoryModal) DOM.btnCloseCategoryModal.addEventListener("click", () => closeModal(DOM.categoryModal));
   if (DOM.btnAddCategory) DOM.btnAddCategory.addEventListener("click", addCategory);
+  DOM.newCategoryName.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.isComposing) addCategory();
+  });
+
+  // 새 탭 색상: 프리셋 클릭 / 직접 선택
+  DOM.newCategorySwatches.addEventListener("click", (e) => {
+    const swatch = e.target.closest(".color-swatch[data-color]");
+    if (swatch) setNewCategoryColor(swatch.dataset.color);
+  });
+  DOM.newCategorySwatches.addEventListener("change", (e) => {
+    if (e.target.dataset.role === "custom-color") setNewCategoryColor(e.target.value);
+  });
+
   if (DOM.categoryManageList) {
+    // 기존 탭 행에서 '직접 선택'으로 고른 색
+    DOM.categoryManageList.addEventListener("change", (e) => {
+      if (e.target.dataset.role !== "custom-color") return;
+      const row = e.target.closest(".category-manage-row");
+      if (row) setRowColor(row, e.target.value);
+    });
+
     DOM.categoryManageList.addEventListener("click", (e) => {
+      const swatch = e.target.closest(".color-swatch[data-color]");
+      if (swatch) {
+        setRowColor(swatch.closest(".category-manage-row"), swatch.dataset.color);
+        return;
+      }
+
       const actionEl = e.target.closest("[data-action]");
       if (!actionEl) return;
       const row = actionEl.closest("[data-id]");
@@ -1382,7 +1622,8 @@ function setupEventListeners() {
       const id = row.dataset.id;
       const action = actionEl.dataset.action;
 
-      if (action === "cat-up") moveCategoryOrder(id, "up");
+      if (action === "cat-color") row.querySelector(".row-swatches").classList.toggle("hidden");
+      else if (action === "cat-up") moveCategoryOrder(id, "up");
       else if (action === "cat-down") moveCategoryOrder(id, "down");
       else if (action === "cat-save") saveCategoryRow(id);
       else if (action === "cat-delete") requestDeleteCategory(id);

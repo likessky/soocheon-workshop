@@ -201,7 +201,7 @@ body.dark-theme .glow-2 {
   background: var(--bg-card);
   border-bottom: 1px solid var(--border-subtle);
   box-shadow: var(--shadow-sm);
-  transition: all var(--transition-normal);
+  transition: background-color var(--transition-normal), border-color var(--transition-normal);
 }
 
 .header-container {
@@ -284,7 +284,7 @@ body.dark-theme .glow-2 {
   font-size: 0.88rem;
   font-weight: 700;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 .btn-icon:hover {
   background: var(--bg-surface);
@@ -398,7 +398,7 @@ body.dark-theme .glow-2 {
   gap: 1rem;
   cursor: pointer;
   box-shadow: var(--shadow-sm);
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 .stat-card:hover {
   transform: translateY(-3px);
@@ -494,7 +494,7 @@ body.dark-theme .glow-2 {
   color: var(--text-body);
   outline: none;
   font-family: inherit;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 .search-box input:focus {
   background: #FFFFFF;
@@ -569,7 +569,7 @@ body.dark-theme .search-box input:focus {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 .btn-manage-tabs:hover {
   color: var(--primary);
@@ -590,7 +590,7 @@ body.dark-theme .search-box input:focus {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 .tab-btn:hover {
   background: var(--bg-surface-subtle);
@@ -620,7 +620,7 @@ body.dark-theme .search-box input:focus {
   font-weight: 700;
   cursor: pointer;
   outline: none;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 .status-select:focus {
   border-color: var(--primary);
@@ -688,7 +688,7 @@ body.dark-theme .search-box input:focus {
   font-weight: 700;
   cursor: pointer;
   outline: none;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .per-page-select:focus {
@@ -718,7 +718,7 @@ body.dark-theme .search-box input:focus {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .btn-view-mode:hover {
@@ -745,7 +745,7 @@ body.dark-theme .search-box input:focus {
   align-items: center;
   justify-content: center;
   font-size: 0.95rem;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .btn-icon-action:hover {
@@ -842,7 +842,7 @@ body.dark-theme .search-box input:focus {
   justify-content: center;
   cursor: pointer;
   box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 .btn-quick-action:hover {
   background: var(--primary);
@@ -1041,7 +1041,7 @@ body.dark-theme .card-ai-copy {
   border-radius: var(--radius-pill); /* Pill */
   text-decoration: none;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
   border: 1px solid transparent;
 }
 
@@ -1072,7 +1072,7 @@ body.dark-theme .card-ai-copy {
   border-radius: var(--radius-pill);
   font-size: 0.85rem;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 .btn-card-detail:hover {
   color: var(--primary);
@@ -1195,7 +1195,7 @@ body.dark-theme .card-ai-copy {
   gap: 0.4rem;
   cursor: pointer;
   border: 1px solid transparent;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .btn-list-action.primary {
@@ -1279,7 +1279,7 @@ body.dark-theme .card-ai-copy {
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
   box-shadow: var(--shadow-sm);
 }
 
@@ -1355,7 +1355,7 @@ body.dark-theme .card-ai-copy {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 .btn-primary:hover {
   background: var(--primary-hover);
@@ -1375,7 +1375,7 @@ body.dark-theme .card-ai-copy {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 .btn-secondary:hover {
   background: var(--primary-light);
@@ -1394,7 +1394,7 @@ body.dark-theme .card-ai-copy {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 .btn-danger:hover {
   background: var(--status-download-text);
@@ -1419,7 +1419,7 @@ body.dark-theme .card-ai-copy {
   cursor: pointer;
   box-shadow: 0 6px 18px rgba(0, 112, 74, 0.35);
   z-index: 60;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 .btn-fab:hover {
   background: var(--primary-hover);
@@ -1432,9 +1432,7 @@ body.dark-theme .card-ai-copy {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(30, 57, 50, 0.55); /* 스타벅스 House Green 반투명 오버레이 */
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: rgba(30, 57, 50, 0.62); /* 스타벅스 House Green 반투명 오버레이 (블러는 느려서 제거) */
   z-index: 100;
   display: flex;
   align-items: center;
@@ -1454,13 +1452,13 @@ body.dark-theme .card-ai-copy {
   overflow-y: auto;
   position: relative;
   box-shadow: var(--shadow-lg);
-  animation: modalFadeIn 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: modalFadeIn 0.14s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @keyframes modalFadeIn {
   from {
     opacity: 0;
-    transform: scale(0.96) translateY(12px);
+    transform: scale(0.98) translateY(4px);
   }
   to {
     opacity: 1;
@@ -1484,7 +1482,7 @@ body.dark-theme .card-ai-copy {
   justify-content: center;
   cursor: pointer;
   z-index: 10;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 .modal-close-btn:hover {
   background: #FFFFFF;
@@ -1727,18 +1725,6 @@ body.dark-theme .card-ai-copy {
   margin-bottom: 1.5rem;
 }
 
-/* 색상 선택 인풋 (탭 관리) */
-.color-input {
-  width: 42px;
-  height: 42px;
-  min-width: 42px;
-  padding: 2px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
-  background: var(--bg-surface);
-  cursor: pointer;
-}
-
 /* --------------------------------------------------------------------------
    8-1. 탭(카테고리) 관리 모달 전용 스타일
 -------------------------------------------------------------------------- */
@@ -1783,7 +1769,7 @@ body.dark-theme .card-ai-copy {
   align-items: center;
   justify-content: center;
   font-size: 0.8rem;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 .btn-icon-mini:hover {
   border-color: var(--primary);
@@ -1798,6 +1784,19 @@ body.dark-theme .card-ai-copy {
   cursor: not-allowed;
 }
 
+.category-manage-row {
+  flex-wrap: wrap;
+}
+.category-manage-row .cat-name-input {
+  min-width: 0;
+}
+
+.category-add-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
 .category-add-row {
   display: flex;
   align-items: center;
@@ -1805,6 +1804,125 @@ body.dark-theme .card-ai-copy {
 }
 .category-add-row .form-input {
   flex: 1;
+  min-width: 0;
+}
+
+/* 현재 선택된 색 미리보기 동그라미 (기존 탭 행에서는 눌러서 팔레트 열기) */
+.color-preview-dot {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-card);
+  box-shadow: 0 0 0 1px var(--border-subtle);
+  padding: 0;
+}
+button.color-preview-dot {
+  cursor: pointer;
+}
+
+/* 자주 쓰는 색상 팔레트 */
+.color-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+.row-swatches {
+  flex-basis: 100%;
+  padding-top: 0.3rem;
+}
+
+.color-swatch {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  font-size: 0.75rem;
+  padding: 0;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+.color-swatch:hover {
+  transform: scale(1.12);
+}
+.color-swatch i {
+  visibility: hidden;
+}
+.color-swatch.is-selected {
+  box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 4px var(--text-body);
+}
+.color-swatch.is-selected i {
+  visibility: visible;
+}
+
+/* '직접 선택' 버튼: 컬러피커 input을 투명하게 덮어 어느 브라우저에서나 열리게 함 */
+.color-swatch.custom {
+  background: conic-gradient(#D64545, #D4A72C, #00704A, #3B7DD8, #7B5CC4, #D85C9A, #D64545);
+  overflow: hidden;
+}
+.color-swatch.custom i {
+  visibility: visible;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
+}
+.color-swatch.custom input[type="color"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+
+/* 등록 폼: URL 입력 옆 로딩 표시 */
+.input-with-status {
+  position: relative;
+}
+.input-with-status .form-input {
+  padding-right: 2.6rem;
+}
+.input-status {
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--primary);
+}
+
+/* 등록 폼: 접히는 추가 옵션 */
+.form-more-options {
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 0.8rem 1rem;
+  margin-bottom: 0.5rem;
+}
+.form-more-options summary {
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  list-style: none;
+  user-select: none;
+}
+.form-more-options summary::-webkit-details-marker {
+  display: none;
+}
+.form-more-options summary i {
+  font-size: 0.75rem;
+  margin-right: 0.3rem;
+  transition: transform var(--transition-fast);
+}
+.form-more-options[open] summary {
+  margin-bottom: 1rem;
+}
+.form-more-options[open] summary i {
+  transform: rotate(90deg);
 }
 
 /* --------------------------------------------------------------------------
@@ -1962,6 +2080,37 @@ body.dark-theme .card-ai-copy {
 /* 유틸리티 클래스 */
 .hidden {
   display: none !important;
+}
+
+/* --------------------------------------------------------------------------
+   클릭 반응 속도: 누르는 즉시 눌린 느낌 + 모바일 탭 지연 제거
+-------------------------------------------------------------------------- */
+button,
+a,
+select,
+summary,
+label.color-swatch,
+.stat-card,
+.project-card,
+.project-list-item {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+button:not(:disabled):not(.btn-clear):active,
+a.btn-primary:active,
+a.btn-secondary:active,
+.btn-card-action:active,
+.btn-list-action:active,
+.stat-card:active {
+  transform: scale(0.96);
+  transition-duration: 0.05s;
+}
+
+/* 테마 전환 순간에는 모든 애니메이션을 꺼서 즉시 바뀌게 합니다 */
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after {
+  transition: none !important;
 }
 
 /* --------------------------------------------------------------------------
