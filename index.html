@@ -6,8 +6,14 @@
   <title>수천재작소 | 개발 프로젝트 통합 관리 포털</title>
   <meta name="description" content="수천재의 독창적인 개발 프로젝트, 웹앱, 자동화 스크립트를 한눈에 모아보고 관리하는 통합 포털">
 
-  <!-- 웹폰트: Pretendard (최고의 한글 가독성 & 깔끔한 모던 타이포그래피) -->
-  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" />
+  <!-- 외부 서버에 미리 연결해 두어 폰트/아이콘/시트 데이터 로딩 시간을 줄입니다 -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preconnect" href="https://script.google.com">
+  <link rel="preconnect" href="https://script.googleusercontent.com">
+
+  <!-- 웹폰트: Pretendard (화면에 실제 쓰인 글자만 나눠 받는 dynamic-subset 버전이라 훨씬 가볍습니다) -->
+  <link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
 
   <!-- 아이콘: Font Awesome 6 -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
@@ -319,8 +325,8 @@
         </div>
 
         <div class="form-group">
-          <label for="fTitle" class="form-label">프로젝트 제목 <span class="label-badge">필수</span></label>
-          <input type="text" id="fTitle" class="form-input" placeholder="멋진 이름을 지어주세요">
+          <label for="fTitle" class="form-label">프로젝트 제목 (선택)</label>
+          <input type="text" id="fTitle" class="form-input" placeholder="비워두면 사이트 제목으로 자동 입력됩니다">
         </div>
 
         <div class="form-group">

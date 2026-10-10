@@ -47,6 +47,8 @@ let state = {
 
 const CACHE_KEY = "soocheon_cache_v3";
 const FALLBACK_THUMBNAIL = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60";
+// 설명이 비어있을 때 화면에 대신 보여주는 문구 (앱 / Apps Script 각각의 기본 문구)
+const PLACEHOLDER_DESCRIPTIONS = ["프로젝트 설명이 등록되지 않았습니다.", "설명이 아직 작성되지 않았습니다."];
 
 // ------------------------------------------------------------------------------
 // 2. DOM 요소 참조 객체 (UI Elements)
@@ -217,6 +219,8 @@ async function loadProjectData(options) {
 
   if (manual && DOM.btnReloadData) DOM.btnReloadData.classList.add("is-spinning");
 
+  const syncStartedAt = Date.now();
+
   try {
     const response = await fetch(sheetApiUrl, { cache: "no-store" });
     if (!response.ok) throw new Error("HTTP " + response.status);
@@ -224,6 +228,13 @@ async function loadProjectData(options) {
     const data = await response.json();
     if (!data || data.ok === false || data.error) {
       throw new Error((data && data.message) || "시트에서 올바른 데이터를 받지 못했습니다.");
+    }
+
+    // 불러오는 사이에 화면에서 등록/수정/삭제를 했다면, 받아온 데이터는 그 변경 이전 것이므로
+    // 덮어쓰지 않습니다. (방금 한 작업이 화면에서 사라졌다가 다시 나타나는 현상 방지)
+    if (lastLocalWriteAt >= syncStartedAt) {
+      updateSyncIndicator(true);
+      return;
     }
 
     const projects = normalizeProjectsData(data.projects || []);
@@ -758,6 +769,7 @@ function openDetailModal(projectId) {
 
   DOM.modalTitle.textContent = project.title;
   DOM.modalDescription.textContent = project.description;
+  DOM.modalThumbnail.removeAttribute("src");   // 이전에 본 프로젝트 이미지가 잠깐 비치지 않도록
   DOM.modalThumbnail.src = project.thumbnail;
   DOM.modalThumbnail.onerror = () => { DOM.modalThumbnail.src = FALLBACK_THUMBNAIL; };
 
@@ -847,10 +859,13 @@ function toggleTheme() {
 // ------------------------------------------------------------------------------
 // 15. 구글 시트 통신 헬퍼
 // ------------------------------------------------------------------------------
+let lastLocalWriteAt = 0;   // 마지막으로 시트에 쓰기 요청을 보낸 시각
+
 async function postToSheet(bodyObj) {
   if (!state.sheetUrl) {
     throw new Error("먼저 [시트 연동]에서 Apps Script URL을 등록해주세요.");
   }
+  if (bodyObj.action !== "meta.fetch") lastLocalWriteAt = Date.now();
 
   const response = await fetch(state.sheetUrl, {
     method: "POST",
@@ -895,14 +910,19 @@ function openProjectForm(mode, projectId) {
     DOM.projectFormIcon.className = "fa-solid fa-pen";
     DOM.projectFormSubmitText.textContent = "수정 내용 저장!";
 
+    // 화면 표시용으로 채워 넣은 기본값(설명 안내문, 기본 이미지, 카테고리명 태그)은
+    // 폼에 넣지 않습니다. 넣으면 수정 저장 시 시트에 실제 값처럼 기록되기 때문입니다.
+    const techStack = project.techStack || [];
+    const isFallbackTech = techStack.length === 1 && techStack[0] === project.tag;
+
     DOM.fUrl.value = project.url || "";
     DOM.fTitle.value = project.title || "";
-    DOM.fDesc.value = project.description || "";
+    DOM.fDesc.value = PLACEHOLDER_DESCRIPTIONS.includes(project.description) ? "" : (project.description || "");
     DOM.fCategory.value = project.tag || "";
     DOM.fStatus.value = project.status || "운영 중";
     DOM.fThumbnail.value = project.thumbnail === FALLBACK_THUMBNAIL ? "" : (project.thumbnail || "");
     DOM.fDriveUrl.value = project.driveUrl || "";
-    DOM.fTechStack.value = (project.techStack || []).join(", ");
+    DOM.fTechStack.value = isFallbackTech ? "" : techStack.join(", ");
   } else {
     DOM.projectFormTitle.textContent = "새 프로젝트 등록";
     DOM.projectFormDesc.textContent = "여기서 입력한 내용은 구글 시트에 자동으로 쏙! 추가됩니다.";
@@ -966,36 +986,61 @@ async function autofillFromUrl() {
   // 기다리는 동안 사용자가 URL을 바꿨거나 폼을 닫았다면 무시합니다.
   if (normalizeUrlInput(DOM.fUrl.value) !== url || DOM.projectFormModal.classList.contains("hidden")) return;
 
-  if (!meta) {
-    setUrlFetchStatus("fail");
-    return;
-  }
-
   // 사용자가 이미 입력한 칸은 덮어쓰지 않고, 빈 칸만 채웁니다.
-  if (!DOM.fTitle.value.trim() && meta.title) DOM.fTitle.value = meta.title;
-  if (!DOM.fDesc.value.trim() && meta.description) DOM.fDesc.value = meta.description;
-  setUrlFetchStatus("done");
+  // 사이트 정보를 못 가져왔어도 제목은 주소에서 만들어 채워둡니다.
+  if (!DOM.fTitle.value.trim()) DOM.fTitle.value = (meta && meta.title) || titleFromUrl(url);
+  if (meta && !DOM.fDesc.value.trim() && meta.description) DOM.fDesc.value = meta.description;
+  setUrlFetchStatus(meta ? "done" : "fail");
 }
 
-/** Apps Script(meta.fetch)를 통해 사이트 정보를 가져옵니다. 실패하면 null. */
-async function fetchSiteMeta(url) {
-  if (state.siteMetaCache[url]) return state.siteMetaCache[url];
-  if (!state.sheetUrl) return null;
-
+/**
+ * 사이트 제목을 못 가져왔을 때 주소로 제목을 만듭니다.
+ * 예) https://neosol.github.io/math-quiz/ → "math-quiz", https://www.example.com → "example.com"
+ */
+function titleFromUrl(url) {
   try {
-    const res = await postToSheet({ action: "meta.fetch", url });
-    if (!res.success || !res.data) return null;
-    const meta = {
-      title: (res.data.title || "").trim(),
-      description: (res.data.description || "").trim(),
-      image: /^https?:\/\//.test(res.data.image || "") ? res.data.image : ""
-    };
-    state.siteMetaCache[url] = meta;
-    return meta;
+    const u = new URL(url);
+    const lastSegment = u.pathname.split("/").filter(Boolean).pop();
+    const name = lastSegment
+      ? decodeURIComponent(lastSegment).replace(/\.(html?|php)$/i, "")
+      : u.hostname.replace(/^www\./, "");
+    return name || u.hostname;
   } catch (err) {
-    console.warn("사이트 정보 가져오기 실패:", err);
-    return null;
+    return "";
   }
+}
+
+const siteMetaPending = {};   // 같은 주소를 동시에 두 번 요청하지 않도록 진행 중인 요청을 공유
+
+/** Apps Script(meta.fetch)를 통해 사이트 정보를 가져옵니다. 실패하면 null. */
+function fetchSiteMeta(url) {
+  if (state.siteMetaCache[url]) return Promise.resolve(state.siteMetaCache[url]);
+  if (!state.sheetUrl) return Promise.resolve(null);
+  if (siteMetaPending[url]) return siteMetaPending[url];
+
+  const request = postToSheet({ action: "meta.fetch", url })
+    .then(res => {
+      if (!res.success || !res.data) return null;
+      const meta = {
+        title: (res.data.title || "").trim(),
+        description: (res.data.description || "").trim(),
+        image: /^https?:\/\//.test(res.data.image || "") ? res.data.image : ""
+      };
+      state.siteMetaCache[url] = meta;
+      return meta;
+    })
+    .catch(err => {
+      console.warn("사이트 정보 가져오기 실패:", err);
+      return null;
+    })
+    .finally(() => { delete siteMetaPending[url]; });
+
+  // 사이트가 너무 느리면 8초까지만 기다립니다.
+  siteMetaPending[url] = Promise.race([
+    request,
+    new Promise(resolve => setTimeout(() => resolve(null), 8000))
+  ]);
+  return siteMetaPending[url];
 }
 
 function setUrlFetchStatus(status) {
@@ -1004,7 +1049,7 @@ function setUrlFetchStatus(status) {
     idle: '<i class="fa-solid fa-wand-magic-sparkles"></i> 주소를 넣으면 제목·설명·썸네일을 사이트에서 자동으로 가져옵니다.',
     loading: '<i class="fa-solid fa-wand-magic-sparkles"></i> 사이트 정보를 가져오는 중...',
     done: '<i class="fa-solid fa-circle-check"></i> 사이트 정보를 채웠어요. 필요하면 자유롭게 고치세요.',
-    fail: '<i class="fa-solid fa-circle-info"></i> 정보를 자동으로 가져오지 못했어요. 제목만 직접 입력해 주세요.'
+    fail: '<i class="fa-solid fa-circle-info"></i> 사이트 정보를 못 가져와서 주소로 제목을 만들었어요. 필요하면 고치세요.'
   };
   DOM.fUrlStatus.classList.toggle("hidden", status !== "loading");
   DOM.fUrlHelp.innerHTML = help[status] || help.idle;
@@ -1020,11 +1065,12 @@ function resolveAutoThumbnail(url) {
 
 async function submitProjectForm() {
   const url = normalizeUrlInput(DOM.fUrl.value);
-  const title = DOM.fTitle.value.trim();
+  let title = DOM.fTitle.value.trim();
+  let description = DOM.fDesc.value.trim();
 
-  if (!title) {
-    showToast("프로젝트 제목을 입력해주세요!", "error");
-    DOM.fTitle.focus();
+  if (!title && !url) {
+    showToast("사이트 주소나 프로젝트 제목 중 하나는 입력해주세요!", "error");
+    DOM.fUrl.focus();
     return;
   }
 
@@ -1035,10 +1081,28 @@ async function submitProjectForm() {
     return;
   }
 
+  // 제목을 비워둔 채 바로 등록을 눌렀다면, 여기서 사이트 정보를 가져와 채웁니다.
+  if (!title) {
+    const btn = DOM.btnSubmitProjectForm;
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 사이트 정보 가져오는 중...';
+
+    const meta = await fetchSiteMeta(url);
+
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+    // 기다리는 동안 폼이 닫혔다면 등록하지 않습니다.
+    if (DOM.projectFormModal.classList.contains("hidden")) return;
+
+    title = (meta && meta.title) || titleFromUrl(url) || url;
+    if (!description && meta && meta.description) description = meta.description;
+  }
+
   const payload = {
     url,
     title,
-    description: DOM.fDesc.value.trim(),
+    description,
     tag: DOM.fCategory.value,
     status: DOM.fStatus.value,
     thumbnail: DOM.fThumbnail.value.trim() || resolveAutoThumbnail(url),

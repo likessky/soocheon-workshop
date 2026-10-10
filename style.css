@@ -147,7 +147,7 @@ html {
 }
 
 body {
-  font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: "Pretendard Variable", "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background-color: var(--bg-main);
   color: var(--text-body);
   line-height: 1.6;
